@@ -116,6 +116,7 @@ _sf_initialize () { # {{{
   _s_stty=""
   _s_IFS=$IFS
 
+  _s_output=""
   _s_ret=0
 
   # Help
@@ -345,6 +346,7 @@ _sf_finalize () { # {{{
   unset _s_is_push
   unset _s_stty
   unset _s_IFS
+  unset _s_output
 
   _sf_finalize_user
 
@@ -736,10 +738,14 @@ _sf_show () { # _sf_show [<is_selected>] [<n_show>] {{{
   fi
 } # }}}
 
-_sf_printline () { # useage: _sf_printline is_selected n_line n_input {{{
+_sf_printline () { # useage: _sf_printline is_selected n_line n_input keep_output{{{
   local is_selected=$1
   local n_line=$2
   local n_input=$3
+  local keep_output=$4
+  if [ "$keep_output" == "" ];then
+    keep_output=0
+  fi
 
   local color=""
   if [ ${_s_v_selected[$n_input]} -eq 1 ];then
@@ -767,15 +773,23 @@ _sf_printline () { # useage: _sf_printline is_selected n_line n_input {{{
   fi
   _sf_show "$is_selected" "$n_show"
   if [ "$_s_col_n_only" -eq 1 ];then
-    printf "%s%s[m%s" "${color}" "${num}" "${_s_show}" >/dev/tty
+    if [ $keep_output -eq 1 ];then
+      _s_output="$_s_output$(printf "%s%s[m%s" "${color}" "${num}" "${_s_show}")"
+    else
+      printf "%s%s[m%s" "${color}" "${num}" "${_s_show}" >/dev/tty
+    fi
   else
-    printf "%s%s%s[m" "${color}" "${num}" "${_s_show}" >/dev/tty
+    if [ $keep_output -eq 1 ];then
+      _s_output="$_s_output$(printf "%s%s%s[m" "${color}" "${num}" "${_s_show}")"
+    else
+      printf "%s%s%s[m" "${color}" "${num}" "${_s_show}" >/dev/tty
+    fi
   fi
   tput cup "$n_line" 0 >/dev/tty
 } # }}}
 
 _sf_print_current_line () { # print current line {{{
-  _sf_printline 1 $((_s_current_n-_s_n_offset+_s_ext_row)) $_s_current_n
+  _sf_printline 1 $((_s_current_n-_s_n_offset+_s_ext_row)) $_s_current_n "$1"
 } # }}}
 
 _sf_printall () { # usage: _sf_printall [not force] {{{
@@ -796,20 +810,21 @@ _sf_printall () { # usage: _sf_printall [not force] {{{
     _s_n_offset=0
   fi
 
-  clear >/dev/tty
-
   # Header
-  _sf_print "${_s_header}"
+  _s_output="${_s_header}
+"
 
   local i
   for i in $(seq 0 $((_s_max_show-1)));do
     if [ $((i+_s_n_offset)) -ge "$_s_n" ];then break;fi
     if [ $((i+_s_n_offset)) -eq $_s_current_n ];then
-      _sf_print_current_line
+      _sf_print_current_line 1
     else
-      _sf_printline 0 $((i+_s_ext_row)) $((i+_s_n_offset))
+      _sf_printline 0 $((i+_s_ext_row)) $((i+_s_n_offset)) 1
     fi
   done
+  clear >/dev/tty
+  _sf_print "$_s_output"
   _s_is_print=0
 } # }}}
 
