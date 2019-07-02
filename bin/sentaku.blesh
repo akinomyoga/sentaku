@@ -422,34 +422,53 @@ _sf_nth () { # {{{
   fi
 } # }}}
 
-_sf_read () { # {{{
-  IFS=
-  if [[ -n "$ZSH_VERSION" ]];then
-    read -srk 1 _s_read </dev/tty
-  else
-    read -srn 1 _s_read </dev/tty
-  fi
-  IFS=$_s_IFS
-} # }}}
+#------------------------------------------------------------------------------
+# mode: sentaku/pause
 
-_sf_wait () { # {{{
-  _sf_read
-} # }}}
+function ble/widget/sentaku_pause/exit { ble-decode/keymap/pop; }
+function ble-decode/keymap:sentaku_pause/define {
+  local ble_bind_keymap=sentaku_pause
+  ble-bind -f __default__ sentaku_pause/exit
+}
+function sentaku/pause {
+  ble-decode/keymap/push sentaku_pause
+}
 
-_sf_yn () { # {{{
+#------------------------------------------------------------------------------
+# mode: sentaku/yn
+
+function ble/widget/sentaku_yn/__before_widget__ {
+  clear >/dev/tty
+  echo "$message [y/n]: " >/dev/tty
+}
+function ble/widget/sentaku_yn/yes {
+  ble-decode/keymap/pop
+  true
+  eval "$_sentaku_yn_callback"
+}
+function ble/widget/sentaku_yn/no {
+  ble-decode/keymap/pop
+  _sf_quit
+  false
+  eval "$_sentaku_yn_callback"
+}
+function ble-decode/keymap:sentaku_yn/define {
+  local ble_bind_keymap=sentaku_tn
+  ble-bind -f __default__ nop
+  ble-bind -f __before_widget__ sentaku_yn/__before_widget__
+  ble-bind -f y sentaku_yn/yes
+  ble-bind -f n sentaku_yn/no
+}
+
+_sentaku_yn_callback=
+function sentaku/yn {
+  _sentaku_yn_callback=$1; shift
   local message="$*"
-  while : ;do
-    clear >/dev/tty
-    echo "$message [y/n]: " >/dev/tty
-    _sf_read
-    if [[ "$_s_read" = "y" ]];then
-      return 0
-    elif [[ "$_s_read" = "n" ]];then
-      _sf_quit
-      return 1
-    fi
-  done
-} # }}}
+  ble-decode/keymap/push sentaku_yn
+  return 148
+}
+
+#------------------------------------------------------------------------------
 
 _sf_check_args () { # {{{
   # Get arguments
@@ -848,9 +867,9 @@ _sf_echo () { # {{{
     clear >/dev/tty
     _sf_print "$*"
     _s_is_print=1
-    _sf_wait
+    sentaku/pause
   fi
-} # }}}
+}
 
 _sf_echoln () { # {{{
   _sf_echo "$*\\n"
@@ -1060,136 +1079,53 @@ _sf_select () { # {{{
   _s_break=1
 } # }}}
 
-_sf_search () { # {{{
-  if [[ "$_s_ext_row" -eq 0 ]];then
-    _sf_echo "Too few lines for search mode."
-    return
-  fi
-  local first_char=$1
-  if [[ "$_s_search" = "" ]];then
-    _s_pre_inputs_0=("${_s_inputs[@]}")
-    _s_pre_inputs_n=0
-    _s_search="\e[41;30mSearch:\e[0m"
-  fi
-
-  if [[ "$first_char" = "" ]];then
-    _sf_printall
-  fi
-  while : ;do
-    local del=0
-    if [[ "$first_char" != "" ]];then
-      _s_search_words="$_s_search_words$first_char"
-      first_char=""
-    else
-      _sf_read
-      local r=$_s_read
-      case $r in
-        $'\E' ) # Esc
-          _sf_read
-          local r2=$_s_read
-          if [[ "$r2" = "v" ]];then # M-v
-            _s_n_move=$((_s_max_show)); sentaku/move-up
-            continue
-          elif [[ "$r2" = "[" ]];then
-            _sf_read
-            local r3=$_s_read
-            if [[ "$r3" = "A" ]];then # cursor up
-              sentaku/move-up
-              continue
-            elif [[ "$r3" = "B" ]];then # cursor down
-              sentaku/move-down
-              continue
-            fi
-          fi
-          if [[ "$_s_n" -eq 0 || "$_s_keymode" -eq 1 ]];then
-            _s_inputs=("${_s_pre_inputs_0[@]}")
-            _s_n=${#_s_inputs[@]}
-            _s_search=""
-            _s_search_words=""
-            _sf_reset
-          fi
-          return
-          ;;
-        $'\ch'|$'\x7f') # ^H/Backspace
-          if [[ "$_s_search_words" = "" ]];then
-            _s_search=""
-            _s_search_words=""
-            _sf_reset
-            return
-          fi
-          _sf_cut_word _s_search_words $((${#_s_search_words}-1))
-          ((_s_pre_inputs_n--))
-          eval "_s_inputs=(\"\${_s_pre_inputs_$((_s_pre_inputs_n))[@]}\")"
-          _s_n=${#_s_inputs[@]}
-          del=1
-          ;;
-        $'\cu') # ^U
-          _s_search_words=""
-          _s_pre_inputs_n=0
-          ;;
-        ""|$'\n' )
-          ble/widget/sentaku/enter
-          return
-          ;;
-        $'\ca' ) ble/widget/sentaku/c_a; continue;;
-        $'\cb' ) ble/widget/sentaku/c_b; continue;;
-        $'\cc' ) ble/widget/sentaku/c_c; continue;;
-        $'\cd' ) ble/widget/sentaku/c_d; continue;;
-        $'\ce' ) ble/widget/sentaku/c_e; continue;;
-        $'\cf' ) ble/widget/sentaku/c_f; continue;;
-        $'\cg' ) ble/widget/sentaku/c_g; continue;;
-        $'\ch' ) ble/widget/sentaku/c_h; continue;;
-        $'\ci' ) ble/widget/sentaku/c_i; continue;;
-        $'\cj' ) ble/widget/sentaku/c_j; continue;;
-        $'\ck' ) ble/widget/sentaku/c_k; continue;;
-        $'\cl' ) ble/widget/sentaku/c_l; continue;;
-        $'\cm' ) ble/widget/sentaku/c_m; continue;;
-        $'\cn' ) ble/widget/sentaku/c_n; continue;;
-        $'\co' ) ble/widget/sentaku/c_o; continue;;
-        $'\cp' ) ble/widget/sentaku/c_p; continue;;
-        $'\cr' ) ble/widget/sentaku/c_r; continue;;
-        $'\cs' ) ble/widget/sentaku/c_s; continue;;
-        $'\ct' ) ble/widget/sentaku/c_t; continue;;
-        $'\cu' ) ble/widget/sentaku/c_u; continue;;
-        $'\cv' ) ble/widget/sentaku/c_v; continue;;
-        $'\cw' ) ble/widget/sentaku/c_w; continue;;
-        $'\cx' ) ble/widget/sentaku/c_x; continue;;
-        $'\cy' ) ble/widget/sentaku/c_y; continue;;
-        $'\cz' ) ble/widget/sentaku/c_z; continue;;
-
-        *)_s_search_words="$_s_search_words$_s_read";;
-      esac
-    fi
-
-    _s_search="\e[41;30mSearch:\e[0m \e[31m$_s_search_words\e[0m"
-
-    if [[ "$_s_search_words" = "" ]];then
-      _s_inputs=("${_s_pre_inputs_0[@]}")
-      _s_n=${#_s_inputs[@]}
-    elif [[ $del -eq 1 ]];then
-      :
-    else
-      local -a inputs
-      inputs=()
-      local i
-      local j
-      for i in $(seq 0 $((_s_n-1)));do
-        if _sf_search_check "${_s_inputs[$i]}";then
-          inputs[j]="${_s_inputs[$i]}"
-          ((j++))
-        fi
-      done
-      _s_inputs=("${inputs[@]}")
-      _s_n=${#_s_inputs[@]}
-      ((_s_pre_inputs_n++))
-      eval "_s_pre_inputs_${_s_pre_inputs_n}=(\"\${_s_inputs[@]}\")"
-    fi
-
-    _sf_reset
+_sf_reset () { # {{{
+  _s_current_n=0
+  _s_n_offset=0
+  _s_g=0
+  _s_n_move=-1
+  _s_visual=-1
+  _s_v_selected=()
+  local i
+  for i in $(seq 0 $((_s_n-1)));do
+    _s_v_selected[$i]=0
   done
+  tput cup "$_s_ext_row" 0 >/dev/tty
+  _sf_printall
 } # }}}
 
-_sf_search_check () { # {{{
+#------------------------------------------------------------------------------
+# mode: sentaku/search
+
+function sentaku/search/update {
+  local opts=$1
+  _s_search="\e[41;30mSearch:\e[0m \e[31m$_s_search_words\e[0m"
+
+  if [[ "$_s_search_words" = "" ]];then
+    _s_inputs=("${_s_pre_inputs_0[@]}")
+    _s_n=${#_s_inputs[@]}
+  elif [[ :$opts: == *:delete:* ]];then
+    :
+  else
+    local -a inputs
+    inputs=()
+    local i
+    local j
+    for i in $(seq 0 $((_s_n-1)));do
+      if sentaku/search/check "${_s_inputs[$i]}";then
+        inputs[j]=${_s_inputs[$i]}
+        ((j++))
+      fi
+    done
+    _s_inputs=("${inputs[@]}")
+    _s_n=${#_s_inputs[@]}
+    ((_s_pre_inputs_n++))
+    eval "_s_pre_inputs_${_s_pre_inputs_n}=(\"\${_s_inputs[@]}\")"
+  fi
+
+  _sf_reset
+}
+function sentaku/search/check {
   local input="$1"
   local search_words=$_s_search_words
 
@@ -1226,22 +1162,116 @@ _sf_search_check () { # {{{
     fi
   fi
   return 0
-} # }}}
+}
 
-_sf_reset () { # {{{
-  _s_current_n=0
-  _s_n_offset=0
-  _s_g=0
-  _s_n_move=-1
-  _s_visual=-1
-  _s_v_selected=()
-  local i
-  for i in $(seq 0 $((_s_n-1)));do
-    _s_v_selected[$i]=0
-  done
-  tput cup "$_s_ext_row" 0 >/dev/tty
-  _sf_printall
-} # }}}
+function ble/widget/sentaku_search/backspace {
+  if [[ "$_s_search_words" = "" ]];then
+    _s_search=""
+    _s_search_words=""
+    _sf_reset
+    ble-decode/keymap/pop
+    return
+  fi
+  _sf_cut_word _s_search_words $((${#_s_search_words}-1))
+  ((_s_pre_inputs_n--))
+  eval "_s_inputs=(\"\${_s_pre_inputs_$((_s_pre_inputs_n))[@]}\")"
+  _s_n=${#_s_inputs[@]}
+  sentaku/search/update delete
+}
+function ble/widget/sentaku_search/accept {
+  ble/widget/sentaku/enter
+  ble-decode/keymap/pop
+}
+function ble/widget/sentaku_search/self-insert {
+  local ret; ble/util/c2s "${KEYS[0]}"
+  _s_search_words=$_s_search_words$ret
+  sentaku/search/update
+}
+function ble/widget/sentaku_search/clear {
+  _s_search_words=""
+  _s_pre_inputs_n=0
+  sentaku/search/update
+}
+function ble/widget/sentaku_search/cancel {
+  if [[ "$_s_n" -eq 0 || "$_s_keymode" -eq 1 ]];then
+    _s_inputs=("${_s_pre_inputs_0[@]}")
+    _s_n=${#_s_inputs[@]}
+    _s_search=""
+    _s_search_words=""
+    _sf_reset
+  fi
+  ble-decode/keymap/pop
+}
+
+function ble-decode/keymap:sentaku_search/define {
+  local ble_bind_keymap=sentaku_search
+
+  ble-bind -f __default__ nop
+  ble-bind -f __defchar__ sentaku_search/self-insert
+
+  ble-bind -f 'C-a' sentaku/c_a
+  ble-bind -f 'C-b' sentaku/c_b
+  ble-bind -f 'C-c' sentaku/c_c
+  ble-bind -f 'C-d' sentaku/c_d
+  ble-bind -f 'C-e' sentaku/c_e
+  ble-bind -f 'C-f' sentaku/c_f
+  ble-bind -f 'C-g' sentaku/c_g
+  ble-bind -f 'C-h' sentaku/c_h
+  ble-bind -f 'C-i' sentaku/c_i
+  ble-bind -f 'C-j' sentaku/c_j
+  ble-bind -f 'C-k' sentaku/c_k
+  ble-bind -f 'C-l' sentaku/c_l
+  ble-bind -f 'C-m' sentaku/c_m
+  ble-bind -f 'C-n' sentaku/c_n
+  ble-bind -f 'C-o' sentaku/c_o
+  ble-bind -f 'C-p' sentaku/c_p
+  ble-bind -f 'C-r' sentaku/c_r
+  ble-bind -f 'C-s' sentaku/c_s
+  ble-bind -f 'C-t' sentaku/c_t
+  ble-bind -f 'C-u' sentaku/c_u
+  ble-bind -f 'C-v' sentaku/c_v
+  ble-bind -f 'C-w' sentaku/c_w
+  ble-bind -f 'C-x' sentaku/c_x
+  ble-bind -f 'C-y' sentaku/c_y
+  ble-bind -f 'C-z' sentaku/c_z
+  ble-bind -f M-v sentaku/page-down
+  ble-bind -f up sentaku/n_up
+  ble-bind -f down sentaku/n_down
+
+  ble-bind -f 'C-h' sentaku_search/backspace
+  ble-bind -f 'BS'  sentaku_search/backspace
+  ble-bind -f 'C-?' sentaku_search/backspace
+  ble-bind -f 'DEL' sentaku_search/backspace
+
+  ble-bind -f C-j sentaku_search/accept
+  ble-bind -f C-m sentaku_search/accept
+  ble-bind -f RET sentaku_search/accept
+
+  ble-bind -f C-u sentaku_search/clear
+  ble-bind -f ESC sentaku_search/cancel
+}
+
+function sentaku/search {
+  if [[ "$_s_ext_row" -eq 0 ]];then
+    _sf_echo "Too few lines for search mode."
+    return
+  fi
+  local first_char=$1
+  if [[ "$_s_search" = "" ]];then
+    _s_pre_inputs_0=("${_s_inputs[@]}")
+    _s_pre_inputs_n=0
+    _s_search="\e[41;30mSearch:\e[0m"
+  fi
+  
+  if [[ "$first_char" = "" ]];then
+    _sf_printall
+  fi
+  _s_search_words="$_s_search_words$first_char"
+  sentaku/search/update
+  ble-decode/keymap/push sentaku_search
+}
+
+#------------------------------------------------------------------------------
 
 _sf_visual_start () { # {{{
   if [[ $_s_visual -ge 0 ]];then
@@ -1290,6 +1320,10 @@ function ble/widget/sentaku/s_vim {
 ${_s_inputs[$_s_current_n]}\n"
 }
 function ble/widget/sentaku/visual_start { _sf_visual_start; }
+function ble/widget/sentaku/page-down {
+  ((_s_n_move=_s_max_show))
+  sentaku/move-up
+}
 
 # function for <C-a>-<C-Z>, <C-Space> {{{
 function ble/widget/sentaku/c_a { # {{{
@@ -1401,7 +1435,7 @@ ble/widget/sentaku/enter () { # {{{
 } # }}}
 
 ble/widget/sentaku/slash () { # {{{
-  _sf_search
+  sentaku/search
 } # }}}
 
 _sf_push () { # {{{
@@ -1455,8 +1489,8 @@ function ble-decode/keymap:sentaku/define {
     ble-bind -f / 'sentaku/slash'
   else
     function ble/widget/sentaku/self-insert {
-      local ret; ble/util/c2s "${KEY[0]}"
-      _sf_search "$ret"
+      local ret; ble/util/c2s "${KEYS[0]}"
+      sentaku/search "$ret"
     }
     ble-bind -f __defchar__ sentaku/self-insert
   fi
@@ -1492,11 +1526,7 @@ function ble-decode/keymap:sentaku/define {
   ble-bind -f C-m sentaku/enter
   ble-bind -f RET sentaku/enter
 
-  function ble/widget/sentaku/M_v {
-    ((_s_n_move=_s_max_show))
-    sentaku/move-up
-  }
-  ble-bind -f M-v sentaku/M_v
+  ble-bind -f M-v sentaku/page-down
   ble-bind -f up sentaku/n_up
   ble-bind -f down sentaku/n_down
 
@@ -1571,7 +1601,7 @@ _sf_main () { # {{{
       ble/util/s2c "$char"
       ble-decode-char "$ret"
       ((_s_break==1)) && break
-      _sf_printall 1
+      [[ $_ble_decode_keymap == sentaku ]] && _sf_printall 1
     done
     ble-decode/keymap/pop
 
