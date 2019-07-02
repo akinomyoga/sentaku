@@ -1211,29 +1211,18 @@ function ble-decode/keymap:sentaku_search/define {
 
   ble-bind -f 'C-a' sentaku/c_a
   ble-bind -f 'C-b' sentaku/c_b
-  ble-bind -f 'C-c' sentaku/c_c
   ble-bind -f 'C-d' sentaku/c_d
   ble-bind -f 'C-e' sentaku/c_e
   ble-bind -f 'C-f' sentaku/c_f
-  ble-bind -f 'C-g' sentaku/c_g
-  ble-bind -f 'C-h' sentaku/c_h
   ble-bind -f 'C-i' sentaku/c_i
-  ble-bind -f 'C-j' sentaku/c_j
-  ble-bind -f 'C-k' sentaku/c_k
-  ble-bind -f 'C-l' sentaku/c_l
-  ble-bind -f 'C-m' sentaku/c_m
   ble-bind -f 'C-n' sentaku/c_n
   ble-bind -f 'C-o' sentaku/c_o
   ble-bind -f 'C-p' sentaku/c_p
   ble-bind -f 'C-r' sentaku/c_r
   ble-bind -f 'C-s' sentaku/c_s
-  ble-bind -f 'C-t' sentaku/c_t
   ble-bind -f 'C-u' sentaku/c_u
   ble-bind -f 'C-v' sentaku/c_v
-  ble-bind -f 'C-w' sentaku/c_w
   ble-bind -f 'C-x' sentaku/c_x
-  ble-bind -f 'C-y' sentaku/c_y
-  ble-bind -f 'C-z' sentaku/c_z
   ble-bind -f M-v sentaku/page-down
   ble-bind -f up sentaku/n_up
   ble-bind -f down sentaku/n_down
@@ -1340,9 +1329,6 @@ ble/widget/sentaku/c_b () { # {{{
   _s_n_move=$((_s_max_show))
   sentaku/move-up
 } # }}}
-ble/widget/sentaku/c_c () { # {{{
-  :
-} # }}}
 ble/widget/sentaku/c_d () { # {{{
   _s_n_move=$((_s_max_show/2))
   sentaku/move-down
@@ -1355,26 +1341,8 @@ ble/widget/sentaku/c_f () { # {{{
   _s_n_move=$((_s_max_show))
   sentaku/move-down
 } # }}}
-ble/widget/sentaku/c_g () { # {{{
-  :
-} # }}}
-ble/widget/sentaku/c_h () { # {{{
-  :
-} # }}}
 ble/widget/sentaku/c_i () { # {{{
   _sf_item_move_up
-} # }}}
-ble/widget/sentaku/c_j () { # {{{
-  :
-} # }}}
-ble/widget/sentaku/c_k () { # {{{
-  :
-} # }}}
-ble/widget/sentaku/c_l () { # {{{
-  :
-} # }}}
-ble/widget/sentaku/c_m () { # {{{
-  :
 } # }}}
 ble/widget/sentaku/c_n () { # {{{
   sentaku/move-down
@@ -1385,18 +1353,11 @@ ble/widget/sentaku/c_o () { # {{{
 ble/widget/sentaku/c_p () { # {{{
   sentaku/move-up
 } # }}}
-ble/widget/sentaku/c_q () { # {{{
-  :
-} # }}}
 ble/widget/sentaku/c_r () { # {{{
   _s_is_print=1
-  :
 } # }}}
 ble/widget/sentaku/c_s () { # {{{
   _sf_visual_start
-} # }}}
-ble/widget/sentaku/c_t () { # {{{
-  :
 } # }}}
 ble/widget/sentaku/c_u () { # {{{
   _s_n_move=$((_s_max_show/2))
@@ -1406,17 +1367,8 @@ ble/widget/sentaku/c_v () { # {{{
   _s_n_move=$((_s_max_show))
   sentaku/move-down
 } # }}}
-ble/widget/sentaku/c_w () { # {{{
-  :
-} # }}}
 ble/widget/sentaku/c_x () { # {{{
   _sf_quit
-} # }}}
-ble/widget/sentaku/c_y () { # {{{
-  :
-} # }}}
-ble/widget/sentaku/c_z () { # {{{
-  :
 } # }}}
 
 ble/widget/sentaku/space () { # {{{
@@ -1462,6 +1414,24 @@ _sf_push () { # {{{
   _sf_echoln "$input is stored in $_s_file"
 } # }}}
 
+function ble/widget/sentaku/cancel {
+  if ((_s_visual!=-1)); then
+    _s_visual=-1
+    local i
+    for ((i=0;i<_s_n;i++)); do
+      _s_v_selected[i]=0
+    done
+    _s_is_print=1
+  fi
+  if [[ $_s_search ]];then
+    _s_inputs=("${_s_pre_inputs_0[@]}")
+    _s_n=${#_s_inputs[@]}
+    _s_search=""
+    _s_search_words=""
+    _sf_reset
+  fi
+}
+
 function ble-decode/keymap:sentaku/define {
   local ble_bind_keymap=sentaku
 
@@ -1497,29 +1467,18 @@ function ble-decode/keymap:sentaku/define {
 
   ble-bind -f 'C-a' sentaku/c_a
   ble-bind -f 'C-b' sentaku/c_b
-  ble-bind -f 'C-c' sentaku/c_c
   ble-bind -f 'C-d' sentaku/c_d
   ble-bind -f 'C-e' sentaku/c_e
   ble-bind -f 'C-f' sentaku/c_f
-  ble-bind -f 'C-g' sentaku/c_g
-  ble-bind -f 'C-h' sentaku/c_h
   ble-bind -f 'C-i' sentaku/c_i
-  ble-bind -f 'C-j' sentaku/c_j
-  ble-bind -f 'C-k' sentaku/c_k
-  ble-bind -f 'C-l' sentaku/c_l
-  ble-bind -f 'C-m' sentaku/c_m
   ble-bind -f 'C-n' sentaku/c_n
   ble-bind -f 'C-o' sentaku/c_o
   ble-bind -f 'C-p' sentaku/c_p
   ble-bind -f 'C-r' sentaku/c_r
   ble-bind -f 'C-s' sentaku/c_s
-  ble-bind -f 'C-t' sentaku/c_t
   ble-bind -f 'C-u' sentaku/c_u
   ble-bind -f 'C-v' sentaku/c_v
-  ble-bind -f 'C-w' sentaku/c_w
   ble-bind -f 'C-x' sentaku/c_x
-  ble-bind -f 'C-y' sentaku/c_y
-  ble-bind -f 'C-z' sentaku/c_z
 
   ble-bind -f SP  sentaku/space
   ble-bind -f C-j sentaku/enter
@@ -1530,24 +1489,7 @@ function ble-decode/keymap:sentaku/define {
   ble-bind -f up sentaku/n_up
   ble-bind -f down sentaku/n_down
 
-  function ble/widget/sentaku/esc {
-    if [[ $_s_visual -ne -1 ]];then
-      _s_visual=-1
-      local i
-      for i in $(seq 0 $((_s_n-1)));do
-        _s_v_selected[$i]=0
-      done
-      _s_is_print=1
-    fi
-    if [[ "$_s_search" != "" ]];then
-      _s_inputs=("${_s_pre_inputs_0[@]}")
-      _s_n=${#_s_inputs[@]}
-      _s_search=""
-      _s_search_words=""
-      _sf_reset
-    fi
-  }
-  ble-bind -f ESC sentaku/esc
+  ble-bind -f ESC sentaku/cancel
 }
 
 _sf_main () { # {{{
@@ -1560,11 +1502,11 @@ _sf_main () { # {{{
   # Get arguments
   _sf_check_args "$@"
   _s_ret=$?
-  if [[ $_s_ret -ne 0 ]];then
+  if ((_s_ret)); then
     _sf_finalize
     return $?
   fi
-  if [[ $_s_continue -eq 0 ]];then
+  if ((_s_continue==0)); then
     _sf_finalize
     return $?
   fi
@@ -1572,13 +1514,13 @@ _sf_main () { # {{{
   # Get values
   _sf_get_values_wrapper
   _s_ret=$?
-  if [[ $_s_ret -ne 0 ]];then
+  if ((_s_ret)); then
     _sf_finalize
     return $?
   fi
 
   # Return nth
-  if [[ $_s_current_n -ge 0 ]];then
+  if ((_s_current_n>=0)); then
     _sf_finalize
     return $?
   fi
@@ -1600,8 +1542,11 @@ _sf_main () { # {{{
       IFS= builtin read -r -d '' -n 1 char; local ext=$?
       ble/util/s2c "$char"
       ble-decode-char "$ret"
-      ((_s_break==1)) && break
-      [[ $_ble_decode_keymap == sentaku ]] && _sf_printall 1
+
+      [[ $_ble_decode_keymap == sentaku || $_ble_decode_keymap == sentaku_search ]] &&
+        ((_s_break==1)) && break
+      [[ $_ble_decode_keymap == sentaku ]] &&
+        _sf_printall 1
     done
     ble-decode/keymap/pop
 
@@ -1613,9 +1558,9 @@ _sf_main () { # {{{
 
   # Finalization
   _sf_finalize
-} # }}}
+}
 
-# Execution part {{{
-if [ "$1" != "-n" ];then
+# Execution part
+if [[ $1 != -n ]];then
   (_sf_main "$@")
 fi
