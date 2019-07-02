@@ -928,7 +928,7 @@ _sf_setview () { # {{{
   fi
 } # }}}
 
-_sf_n_down () { # The line goes Down. (Increase the line number) {{{
+sentaku/move-down () { # The line goes Down. (Increase the line number) {{{
   [[ $_s_n_move -le 0 ]] && _s_n_move=1
   local all=0
   local old_current_n=$_s_current_n
@@ -972,7 +972,7 @@ _sf_n_down () { # The line goes Down. (Increase the line number) {{{
   _s_n_move=-1
 } # }}}
 
-_sf_n_up () { # The line goes up. (Decrease the line Number!) {{{
+sentaku/move-up () { # The line goes up. (Decrease the line Number!) {{{
   [[ $_s_n_move -le 0 ]] && _s_n_move=1
   local all=0
   local old_current_n=$_s_current_n
@@ -1030,7 +1030,7 @@ _sf_item_move_up () { # {{{ Move the item up
   _s_inputs[$replace]=$v_current
   [[ $_s_stdin -eq 0 ]] && _sf_align_values 0 0
   _sf_printall
-  _sf_n_up
+  sentaku/move-up
 } # }}}
 
 _sf_item_move_down () { # {{{ Move the item down
@@ -1047,7 +1047,7 @@ _sf_item_move_down () { # {{{ Move the item down
   _s_inputs[$replace]=$v_current
   [[ $_s_stdin -eq 0 ]] && _sf_align_values 0 0
   _sf_printall
-  _sf_n_down
+  sentaku/move-down
 } # }}}
 
 _sf_quit () { # {{{
@@ -1088,16 +1088,16 @@ _sf_search () { # {{{
           _sf_read
           local r2=$_s_read
           if [[ "$r2" = "v" ]];then # M-v
-            _s_n_move=$((_s_max_show)); _sf_n_up
+            _s_n_move=$((_s_max_show)); sentaku/move-up
             continue
           elif [[ "$r2" = "[" ]];then
             _sf_read
             local r3=$_s_read
             if [[ "$r3" = "A" ]];then # cursor up
-              _sf_n_up
+              sentaku/move-up
               continue
             elif [[ "$r3" = "B" ]];then # cursor down
-              _sf_n_down
+              sentaku/move-down
               continue
             fi
           fi
@@ -1253,36 +1253,36 @@ _sf_visual_start () { # {{{
   fi
 } # }}}
 
-_sf_gG () { # {{{
-  _s_n_move=$((_s_n_move-_s_current_n))
-  if [[ $_s_n_move -eq 0 ]];then
-    return
-  fi
-  if [[ $_s_n_move -lt 0 ]];then
-    _s_n_move=$((0-_s_n_move))
-    _sf_n_up
+function sentaku/goto {
+  ((_s_n_move=_s_n_move-_s_current_n))
+  ((_s_n_move==0)) && return
+  if ((_s_n_move<0)); then
+    ((_s_n_move=-_s_n_move))
+    sentaku/move-up
   else
-    _sf_n_down
+    sentaku/move-down
   fi
-} # }}}
+}
 
 function ble/widget/sentaku/n_move_inc {
-  local n=${1:-"0"}
-  [[ $_s_n_move -gt 0 ]] && _s_n_move="$_s_n_move""$n" || _s_n_move=$n
+  local n=${1:-0}
+  ((_s_n_move=_s_n_move>0?_s_n_move*10+n:n))
 }
 function ble/widget/sentaku/rm_del { _sf_rm_del; }
 function ble/widget/sentaku/g_vim {
-  if [[ $_s_g -eq 0 ]];then
+  if ((_s_g==0)); then
     _s_g=1
     return
   fi
-  if [[ "$_s_n_move" -lt 0 ]];then
-    _s_n_move=0
-  fi
-  _sf_gG
+  ((_s_n_move<0)) && _s_n_move=0
+  sentaku/goto
 }
-function ble/widget/sentaku/n_down { _sf_n_down; }
-function ble/widget/sentaku/n_up { _sf_n_up; }
+function ble/widget/sentaku/G_vim {
+  ((_s_n_move<0)) && _s_n_move=$_s_n
+  sentaku/goto
+}
+function ble/widget/sentaku/n_down { sentaku/move-down; }
+function ble/widget/sentaku/n_up { sentaku/move-up; }
 function ble/widget/sentaku/quit { _sf_quit; }
 function ble/widget/sentaku/s_vim {
   _sf_echo "$(_sf_nth $((_s_current_n))) value:
@@ -1290,17 +1290,11 @@ function ble/widget/sentaku/s_vim {
 ${_s_inputs[$_s_current_n]}\n"
 }
 function ble/widget/sentaku/visual_start { _sf_visual_start; }
-function ble/widget/sentaku/G_vim {
-  if [[ $_s_n_move -lt 0 ]];then
-    _s_n_move=$_s_n
-  fi
-  _sf_gG
-}
 
 # function for <C-a>-<C-Z>, <C-Space> {{{
-ble/widget/sentaku/c_a () { # {{{
+function ble/widget/sentaku/c_a { # {{{
   _s_n_move=0
-  _sf_gG
+  sentaku/goto
   #local i
   #for i in $(seq 0 $((_s_n-1)));do
   #  _s_visual=-2
@@ -1310,22 +1304,22 @@ ble/widget/sentaku/c_a () { # {{{
 } # }}}
 ble/widget/sentaku/c_b () { # {{{
   _s_n_move=$((_s_max_show))
-  _sf_n_up
+  sentaku/move-up
 } # }}}
 ble/widget/sentaku/c_c () { # {{{
   :
 } # }}}
 ble/widget/sentaku/c_d () { # {{{
   _s_n_move=$((_s_max_show/2))
-  _sf_n_down
+  sentaku/move-down
 } # }}}
 ble/widget/sentaku/c_e () { # {{{
   _s_n_move=$_s_n
-  _sf_gG
+  sentaku/goto
 } # }}}
 ble/widget/sentaku/c_f () { # {{{
   _s_n_move=$((_s_max_show))
-  _sf_n_down
+  sentaku/move-down
 } # }}}
 ble/widget/sentaku/c_g () { # {{{
   :
@@ -1349,13 +1343,13 @@ ble/widget/sentaku/c_m () { # {{{
   :
 } # }}}
 ble/widget/sentaku/c_n () { # {{{
-  _sf_n_down
+  sentaku/move-down
 } # }}}
 ble/widget/sentaku/c_o () { # {{{
   _sf_item_move_down
 } # }}}
 ble/widget/sentaku/c_p () { # {{{
-  _sf_n_up
+  sentaku/move-up
 } # }}}
 ble/widget/sentaku/c_q () { # {{{
   :
@@ -1372,11 +1366,11 @@ ble/widget/sentaku/c_t () { # {{{
 } # }}}
 ble/widget/sentaku/c_u () { # {{{
   _s_n_move=$((_s_max_show/2))
-  _sf_n_up
+  sentaku/move-up
 } # }}}
 ble/widget/sentaku/c_v () { # {{{
   _s_n_move=$((_s_max_show))
-  _sf_n_down
+  sentaku/move-down
 } # }}}
 ble/widget/sentaku/c_w () { # {{{
   :
@@ -1499,7 +1493,8 @@ function ble-decode/keymap:sentaku/define {
   ble-bind -f RET sentaku/enter
 
   function ble/widget/sentaku/M_v {
-    _s_n_move=$((_s_max_show)); _sf_n_up
+    ((_s_n_move=_s_max_show))
+    sentaku/move-up
   }
   ble-bind -f M-v sentaku/M_v
   ble-bind -f up sentaku/n_up
