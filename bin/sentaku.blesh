@@ -56,15 +56,15 @@ _SENTAKU_LINE_HIGHLIGHT=${_SENTAKU_LINE_HIGHLIGHT:-1}
 _SENTAKU_DEBUG=${_SENTAKU_DEBUG:-0}
 # }}}
 
-_sf_help () { # {{{
+function sentaku/help {
   if [[ -t 1 ]]; then
     echo "$_s_help" | ${PAGER:-less} >/dev/tty
   else
     echo "$_s_help"
   fi
-} # }}}
+}
 
-_sf_initialize () { # {{{
+function sentaku/initialize { # {{{
   # Set variables
   _s_file=${SENTAKU_INPUT_FILE:-$_SENTAKU_INPUT_FILE}
   _s_use_file=0
@@ -203,12 +203,12 @@ Key operation at sentaku window
   [[ ! -t 0 ]] && _s_stdin=1
 
   # User initialization
-  _sf_initialize_user
+  sentaku/INITIALIZE
 } # }}}
 
-_sf_initialize_user () { # {{{
+function sentaku/INITIALIZE {
   :
-} # }}}
+}
 
 function sentaku/list#clear {
   _sentaku_visual_list=()
@@ -223,7 +223,7 @@ function sentaku/list#set {
 }
 
 
-_sf_finalize () { # {{{
+function sentaku/finalize {
   IFS=$_s_IFS
 
   if ((_s_ret==0&&_s_current_n>=0));then
@@ -272,7 +272,7 @@ _sf_finalize () { # {{{
     fi
 
     # Execution for selected value
-    _sf_execute
+    sentaku/execute
 
     [[ "$_s_align" -eq 1 && "$_s_stdin" -eq 0 ]] &&\
       _sf_align_values "$_s_current_n" 0
@@ -358,18 +358,18 @@ _sf_finalize () { # {{{
   unset _s_stty
   unset _s_IFS
 
-  _sf_finalize_user
+  sentaku/FINALIZE
 
   local ret=$_s_ret
   unset _s_ret
   return $ret
-} # }}}
+}
 
-_sf_finalize_user () { # {{{
+function sentaku/FINALIZE {
   :
-} # }}}
+}
 
-_sf_execute () {
+function sentaku/execute {
   if ((_sentaku_visual!=-1));then
     local is_first=1
     local i
@@ -386,7 +386,7 @@ _sf_execute () {
   fi
 }
 
-_sf_hide () { # {{{
+function sentaku/hide {
   if [[ "$_SENTAKU_CHILD" -eq 0 && "$_s_noshow" -eq 0 ]];then
     if [[ $_s_stdin -eq 0 ]];then
       # Save current stty
@@ -405,9 +405,9 @@ _sf_hide () { # {{{
 
     _s_normal_echo=0
   fi
-} # }}}
+}
 
-_sf_clear () { # {{{
+function sentaku/clear {
   if [[ "$_SENTAKU_CHILD" -eq 0 && "$_s_noshow" -eq 0 ]];then
     # clear after selection
     clear >/dev/tty
@@ -417,7 +417,7 @@ _sf_clear () { # {{{
 
     _s_normal_echo=1
   fi
-} # }}}
+}
 
 function sentaku/util/nth {
   local -i arg=$1
@@ -480,7 +480,7 @@ function sentaku/yn {
 
 #------------------------------------------------------------------------------
 
-_sf_check_args () { # {{{
+function sentaku/check-args {
   # Get arguments
   _s_continue=0
   while (($#)); do
@@ -521,14 +521,14 @@ _sf_check_args () { # {{{
       ;;
     ("-p")
       shift
-      _sf_push "$@"
+      sentaku/push "$@"
       return $? ;;
     ("-E") _s_keymode=1;;
     ("-V") _s_keymode=0;;
     ("-c") _SENTAKU_CHILD=1;;
     ("-v") echo "$(basename "$0") $SENTAKU_VERSION $SENTAKU_DATE" >/dev/tty; return 0;;
     ("-h")
-      _sf_help
+      sentaku/help
       return 0 ;;
     (-*)
       echo "$(basename "$0") $1: unknown argument
@@ -543,9 +543,9 @@ Check \"$(basename "$0" ) -h\" for further information" >/dev/tty
   _s_cmd_line_inputs="$*"
   _s_continue=1
   return 0
-} # }}}
+}
 
-function _sf_push {
+function sentaku/push {
   # Set input
   local input="$*"
   shift $#
@@ -559,26 +559,28 @@ function _sf_push {
   fi
 
   # Renew values
-  _sf_get_values_wrapper 0 0
+  sentaku/get-values 0 0
   IFS=$_s_s_push
   _s_inputs=(${input}${_s_s_push}${_s_inputs[@]})
   IFS=$_s_IFS
   _s_n=${#_s_inputs[@]}
   _sf_align_values 0 0
 
-  _sf_echoln "$input is stored in $_s_file"
+  sentaku/echoln "$input is stored in $_s_file"
 }
 
-_sf_get_values_wrapper () { # {{{ _sf_get_values_wrapper [<is_stdin> [<is_check>]]
-  _sf_get_values "$1" "$2"
+## @fn sentaku/get-values [<is_stdin> [<is_check>]]
+function sentaku/get-values {
+  sentaku/get-values.impl "$1" "$2"
   if ((_s_n==0)); then
     return 1
   else
-    _sf_setview
+    sentaku/setview
   fi
-} # }}}
+}
 
-_sf_get_values () { # {{{ _sf_get_values [<is_stdin> [<is_check>]]
+## @fn sentaku/get-values.impl [<is_stdin> [<is_check>]]
+function sentaku/get-values.impl {
   local stdin=$_s_stdin
   local check=1
   if [[ "$1" != "" ]];then
@@ -614,9 +616,9 @@ _sf_get_values () { # {{{ _sf_get_values [<is_stdin> [<is_check>]]
 
   if [[ "$check" -eq 1 && "$_s_n" -eq 0 ]];then
     if [[ "$stdin" -eq 0 || "$_s_use_file" -eq 1 ]];then
-      _sf_echoln "No value in $_s_file\\n"
+      sentaku/echoln "No value in $_s_file\\n"
     else
-      _sf_echoln "No value in stdin\\n"
+      sentaku/echoln "No value in stdin\\n"
     fi
     _s_ret=1
     return
@@ -624,13 +626,13 @@ _sf_get_values () { # {{{ _sf_get_values [<is_stdin> [<is_check>]]
     sentaku/list#clear
   fi
   _s_ret=0
-} # }}}
+}
 
-_sf_align_values () { # {{{ _sf_align_values [<n> [<is_get>]]
+function sentaku/align-values () { # {{{ sentaku/align-values [<n> [<is_get>]]
   local n=${1:-$_s_current_n}
   local is_get=${2:-1}
   if [[ ! $n =~ ^[0-9]+$ || n -ge _s_n ]];then
-    _sf_echoln "$n is not valid for _sf_align_values"
+    sentaku/echoln "$n is not valid for sentaku/align-values"
     return 1
   fi
   local v="${_s_inputs[$n]}"
@@ -643,45 +645,47 @@ _sf_align_values () { # {{{ _sf_align_values [<n> [<is_get>]]
     fi
   done
   if ((is_get==1)); then
-    _sf_get_values_wrapper
+    sentaku/get-values
   fi
 } # }}}
 
-_sf_add_spaces () { # {{{ _sf_add_spaces <var> <n> [is_prepend]
+function sentaku/string#add-spaces { # {{{ sentaku/string#add-spaces <var> <n> [is_prepend]
   local var=$1
   local n=$2
   local prepend=${3:-0}
-  while [[ "$n" -gt 0 ]];do
-    if [[ "$prepend" -eq 1 ]];then
+  while ((n>0));do
+    if ((prepend==1));then
       eval "$var=\" \$$var\""
     else
       eval "$var=\"\$$var \""
     fi
     ((n--))
   done
-} # }}}
+}
 
-_sf_cut_word () { # {{{ _sf_cut_word <var> <max_length> [<is_last_show>]
+## @fn sentaku/string#cut-word <var> <max_length> [<is_last_show>]
+function sentaku/string#cut-word {
   local var=$1
   local max_length=$2
   local is_last_show=${3:-0}
-  if eval "[[ \${#$var} -le $max_length ]]";then
-    eval "_sf_add_spaces $var \$(($max_length-\${#$var}))"
-    return
-  fi
-  if [[ "$is_last_show" -eq 0 ]];then
-    eval "$var=\${$var: 0: $max_length}"
-    return
+  local _value=${!var}
+  if ((${#_value}<=max_length)); then
+    sentaku/string#add-spaces _value $((max_length-${#_value}))
+  elif ((is_last_show==0)); then
+    _value=${_value::max_length}
   else
-    eval "$var=\${$var: \$((\${#$var}-max_length))}"
+    _value=${_value:${#_value}-max_length}
     return
   fi
+  eval "$var=\$_value"
+  return
 } # }}}
 
-_sf_show () { # _sf_show [<is_selected>] [<n_show>] {{{
+## sentaku/show [<is_selected>] [<n_show>]
+function sentaku/show {
   local is_selected=${1:-0}
   local n_show=${2:-$_s_cols}
-  _sf_cut_word _s_show "$n_show" "$_s_showlast"
+  sentaku/string#cut-word _s_show "$n_show" "$_s_showlast"
 
   # Color search words
   if [[ "$_s_search_words" != "" ]];then
@@ -726,9 +730,9 @@ _sf_show () { # _sf_show [<is_selected>] [<n_show>] {{{
       fi
     fi
   fi
-} # }}}
+}
 
-_sf_printline () { # useage: _sf_printline is_selected n_line n_input {{{
+function sentaku/printline { # useage: sentaku/printline is_selected n_line n_input {{{
   local is_selected=$1
   local n_line=$2
   local n_input=$3
@@ -757,23 +761,25 @@ _sf_printline () { # useage: _sf_printline is_selected n_line n_input {{{
     local nmax=$((_s_n-1))
     local num_width=${#nmax}
     n_show=$((_s_cols-num_width-2))
-    _sf_add_spaces _s_num $((num_width-${#n_input})) 1
+    sentaku/string#add-spaces _s_num $((num_width-${#n_input})) 1
     _s_num="$_s_num$n_input: "
   fi
-  _sf_show "$is_selected" "$n_show"
+  sentaku/show "$is_selected" "$n_show"
   if [[ "$_s_col_n_only" -eq 1 ]];then
     printf "${color}${_s_num}[m${_s_show}" >/dev/tty
   else
     printf "${color}${_s_num}${_s_show}[m" >/dev/tty
   fi
   tput cup "$n_line" 0 >/dev/tty
-} # }}}
+}
 
-_sf_print_current_line () { # print current line {{{
-  _sf_printline 1 $((_s_current_n-_s_n_offset+_s_ext_row)) $_s_current_n
-} # }}}
+## print current line
+function sentaku/print_current_line {
+  sentaku/printline 1 $((_s_current_n-_s_n_offset+_s_ext_row)) $_s_current_n
+}
 
-_sf_printall () { # usage: _sf_printall [not force] {{{
+## usage: sentaku/printall [not force]
+function sentaku/printall {
   # if any argument is given, check if echoed or not.
   if [[ $# -ge 1 && $_s_is_print -eq 0 ]];then
     return
@@ -784,7 +790,7 @@ _sf_printall () { # usage: _sf_printall [not force] {{{
   _s_lines=$(tput lines)
   _s_cols=$(tput cols)
 
-  _sf_setview
+  sentaku/setview
 
   if [[ "$lines" -ne "$_s_lines" || "$cols" -ne "$_s_cols" ]];then
     _s_current_n=0
@@ -794,61 +800,61 @@ _sf_printall () { # usage: _sf_printall [not force] {{{
   clear >/dev/tty
 
   # Header
-  _sf_print "${_s_header}"
+  sentaku/util/print "${_s_header}"
 
   local i
   for i in $(seq 0 $((_s_max_show-1)));do
     if [[ $((i+_s_n_offset)) -ge "$_s_n" ]];then break;fi
     if [[ $((i+_s_n_offset)) -eq $_s_current_n ]];then
-      _sf_print_current_line
+      sentaku/print_current_line
     else
-      _sf_printline 0 $((i+_s_ext_row)) $((i+_s_n_offset))
+      sentaku/printline 0 $((i+_s_ext_row)) $((i+_s_n_offset))
     fi
   done
   _s_is_print=0
-} # }}}
+}
 
-_sf_print () { # {{{
+function sentaku/util/print { # {{{
   printf "%b" "$*" >/dev/tty
-} # }}}
+}
 
-_sf_echo () { # {{{
+function sentaku/echo {
   if [[ $_s_noshow -eq 1 ]];then
     :
   elif [[ $_s_normal_echo -eq 1 ]];then
-    _sf_print "$*"
+    sentaku/util/print "$*"
   else
     clear >/dev/tty
-    _sf_print "$*"
+    sentaku/util/print "$*"
     _s_is_print=1
     sentaku/pause
   fi
 }
 
-_sf_echoln () { # {{{
-  _sf_echo "$*\\n"
-} # }}}
+function sentaku/echoln {
+  sentaku/echo "$*\\n"
+}
 
-_sf_echo_debug () { # {{{
-  if [[ "$_s_debug" = "" ]];then
+function sentaku/echo-debug {
+  if [[ ! $_s_debug ]]; then
     # Temporarily use default value for debug_echo before initialization.
     _s_debug=$_SENTAKU_DEBUG
   fi
-  if [[ "$_s_debug" -gt 0 ]];then
-    _sf_echo "$*"
+  if ((_s_debug>0)); then
+    sentaku/echo "$*"
   fi
-} # }}}
+}
 
-_sf_echoln_debug () { # {{{
-  _sf_echo_debug "$*\\n"
-} # }}}
+function sentaku/echoln-debug {
+  sentaku/echo-debug "$*\\n"
+}
 
-_sf_echo_printall () { # {{{
-  _sf_echo "$*"
-  _sf_printall
-} # }}}
+function sentaku/echo-printall {
+  sentaku/echo "$*"
+  sentaku/printall
+}
 
-_sf_set_header () { # {{{
+function sentaku/set-header {
   _s_header="\\e[43;30m$_s_n values in total\\e[0m "
   if [[ "$_s_noheader" = 1 ]];then
     return
@@ -879,7 +885,7 @@ _sf_set_header () { # {{{
   fi
 }  # }}}
 
-_sf_setview () {
+function sentaku/setview {
   if ((_s_lines<=_s_min_show)); then
     _s_header=
     _s_ext_row=0
@@ -887,7 +893,7 @@ _sf_setview () {
     _s_header=${_s_search}
     _s_ext_row=1
   else
-    _sf_set_header
+    sentaku/set-header
     _s_header="$_s_header\\n$_s_search"
     if (($(printf "%b\n" "$_s_header"|grep -c ^)>_s_lines-_s_min_show)); then
       _s_header="\e[43;30m$_s_n values in total\e[0m\n${_s_search}"
@@ -910,7 +916,7 @@ function ble/widget/sentaku/select {
   _s_break=1
 }
 
-_sf_reset () { # {{{
+function sentaku/reset {
   _s_current_n=0
   _s_n_offset=0
   _s_g=0
@@ -918,8 +924,8 @@ _sf_reset () { # {{{
   _sentaku_visual=-1
   sentaku/list#clear
   tput cup "$_s_ext_row" 0 >/dev/tty
-  _sf_printall
-} # }}}
+  sentaku/printall
+}
 
 #------------------------------------------------------------------------------
 # moves
@@ -946,19 +952,19 @@ function sentaku/move-down { # The line goes Down. (Increase the line number) {{
   if ((all==1)); then
     _s_is_print=1
   elif ((_sentaku_visual<0)); then
-    _sf_printline 0 $old_cursor_r $old_current_n
-    _sf_print_current_line
+    sentaku/printline 0 $old_cursor_r $old_current_n
+    sentaku/print_current_line
   fi
   if ((_sentaku_visual>=0)); then
     local tmp_r=$old_cursor_r
     local tmp_n=$old_current_n
     while ((tmp_n<_s_current_n)); do
       sentaku/list#set "$tmp_n" $((tmp_n<_sentaku_visual?0:1))
-      ((all!=1)) && _sf_printline 0 $tmp_r $tmp_n
+      ((all!=1)) && sentaku/printline 0 $tmp_r $tmp_n
       ((tmp_r++,tmp_n++))
     done
     _sentaku_visual_list[_s_current_n]=1
-    ((all!=1)) && _sf_print_current_line
+    ((all!=1)) && sentaku/print_current_line
   fi
   _s_g=0
   _s_n_move=-1
@@ -986,19 +992,19 @@ function sentaku/move-up { # The line goes up. (Decrease the line Number!) {{{
   if ((all==1)); then
     _s_is_print=1
   elif ((_sentaku_visual<0)); then
-    _sf_printline 0 $old_cursor_r $old_current_n
-    _sf_print_current_line
+    sentaku/printline 0 $old_cursor_r $old_current_n
+    sentaku/print_current_line
   fi
   if ((_sentaku_visual>=0)); then
     local tmp_r=$old_cursor_r
     local tmp_n=$old_current_n
     while ((tmp_n>_s_current_n)); do
       sentaku/list#set "$tmp_n" $((tmp_n>s_visual?1:0))
-      ((all!=1)) && _sf_printline 0 $tmp_r $tmp_n
+      ((all!=1)) && sentaku/printline 0 $tmp_r $tmp_n
       ((tmp_r--,tmp_n--))
     done
     _sentaku_visual_list[_s_current_n]=1
-    ((all!=1)) && _sf_print_current_line
+    ((all!=1)) && sentaku/print_current_line
   fi
   _s_g=0
   _s_n_move=-1
@@ -1080,7 +1086,7 @@ function sentaku/delete {
     fi
     printf "%s$_s_s_push" "${_s_inputs[$i]}" >> "$_s_file"
   done
-  _sf_get_values_wrapper
+  sentaku/get-values
 }
 
 function sentaku/remove {
@@ -1111,8 +1117,8 @@ function ble/widget/sentaku/raise-item {
   local v_replace=${_s_inputs[$replace]}
   _s_inputs[$_s_current_n]=$v_replace
   _s_inputs[$replace]=$v_current
-  [[ $_s_stdin -eq 0 ]] && _sf_align_values 0 0
-  _sf_printall
+  [[ $_s_stdin -eq 0 ]] && sentaku/align-values 0 0
+  sentaku/printall
   sentaku/move-up
 }
 function ble/widget/sentaku/lower-item {
@@ -1127,8 +1133,8 @@ function ble/widget/sentaku/lower-item {
   local v_replace=${_s_inputs[replace]}
   _s_inputs[_s_current_n]=$v_replace
   _s_inputs[replace]=$v_current
-  ((_s_stdin==0)) && _sf_align_values 0 0
-  _sf_printall
+  ((_s_stdin==0)) && sentaku/align-values 0 0
+  sentaku/printall
   sentaku/move-down
 }
 function ble/widget/sentaku/delete-item {
@@ -1139,7 +1145,7 @@ function ble/widget/sentaku/delete-item {
     sentaku/delete
   fi
   if ((_s_n==0)); then
-    _sf_echoln "There are no remained entries"
+    sentaku/echoln "There are no remained entries"
     _s_ret=1
   fi
   if ((_s_ret));then
@@ -1193,7 +1199,7 @@ function sentaku/search/update {
     eval "_s_pre_inputs_${_s_pre_inputs_n}=(\"\${_s_inputs[@]}\")"
   fi
 
-  _sf_reset
+  sentaku/reset
 }
 function sentaku/search/check {
   local input="$1"
@@ -1231,11 +1237,11 @@ function ble/widget/sentaku_search/backspace {
   if [[ ! $_s_search_words ]]; then
     _s_search=
     _s_search_words=
-    _sf_reset
+    sentaku/reset
     ble-decode/keymap/pop
     return
   fi
-  _sf_cut_word _s_search_words $((${#_s_search_words}-1))
+  sentaku/string#cut-word _s_search_words $((${#_s_search_words}-1))
   ((_s_pre_inputs_n--))
   eval "_s_inputs=(\"\${_s_pre_inputs_$((_s_pre_inputs_n))[@]}\")"
   _s_n=${#_s_inputs[@]}
@@ -1261,7 +1267,7 @@ function ble/widget/sentaku_search/cancel {
     _s_n=${#_s_inputs[@]}
     _s_search=
     _s_search_words=
-    _sf_reset
+    sentaku/reset
   fi
   ble-decode/keymap/pop
 }
@@ -1308,7 +1314,7 @@ function ble-decode/keymap:sentaku_search/define {
 
 function ble/widget/sentaku/search {
   if ((_s_ext_row==0)); then
-    _sf_echo "Too few lines for search mode."
+    sentaku/echo "Too few lines for search mode."
     return
   fi
   local first_char=$1
@@ -1319,7 +1325,7 @@ function ble/widget/sentaku/search {
   fi
   
   if [[ ! $first_char ]]; then
-    _sf_printall
+    sentaku/printall
   fi
   _s_search_words="$_s_search_words$first_char"
   sentaku/search/update
@@ -1334,19 +1340,19 @@ function ble/widget/sentaku/start-visual {
   else
     _sentaku_visual_list[_s_current_n]=1
     _sentaku_visual=$_s_current_n
-    _sf_print_current_line
+    sentaku/print_current_line
   fi
 }
 function ble/widget/sentaku/toggle {
   # Space to start visual
   sentaku/list#set "$_s_current_n" $((!_sentaku_visual_list[_s_current_n]))
   _sentaku_visual=-2
-  _sf_print_current_line
+  sentaku/print_current_line
 }
 
 function ble/widget/sentaku/show {
   local ret; sentaku/util/nth "$_s_current_n"; local nth=$ret
-  _sf_echo "$nth value:
+  sentaku/echo "$nth value:
 
 ${_s_inputs[$_s_current_n]}\n"
 }
@@ -1366,7 +1372,7 @@ function ble/widget/sentaku/cancel {
     _s_n=${#_s_inputs[@]}
     _s_search=""
     _s_search_words=""
-    _sf_reset
+    sentaku/reset
   fi
 }
 
@@ -1434,36 +1440,36 @@ function ble-decode/keymap:sentaku/define {
   ble-bind -f ESC sentaku/cancel
 }
 
-sentaku/main () { # {{{
+function sentaku/main {
   # Set trap
-  trap "_sf_clear;_s_trapped=1;_s_stdin=0;_s_ret=1;_sf_finalize;exit" HUP INT QUIT ABRT SEGV TERM
+  trap "sentaku/clear;_s_trapped=1;_s_stdin=0;_s_ret=1;sentaku/finalize;exit" HUP INT QUIT ABRT SEGV TERM
 
   # Initializatoin
-  _sf_initialize
+  sentaku/initialize
 
   # Get arguments
-  _sf_check_args "$@"
+  sentaku/check-args "$@"
   _s_ret=$?
   if ((_s_ret)); then
-    _sf_finalize
+    sentaku/finalize
     return $?
   fi
   if ((_s_continue==0)); then
-    _sf_finalize
+    sentaku/finalize
     return $?
   fi
 
   # Get values
-  _sf_get_values_wrapper
+  sentaku/get-values
   _s_ret=$?
   if ((_s_ret)); then
-    _sf_finalize
+    sentaku/finalize
     return $?
   fi
 
   # Return nth
   if ((_s_current_n>=0)); then
-    _sf_finalize
+    sentaku/finalize
     return $?
   fi
 
@@ -1472,12 +1478,12 @@ sentaku/main () { # {{{
     [[ $term_state == external ]] && ble/term/enter
 
     # Hide displays
-    _sf_hide
+    sentaku/hide
 
     # Initialize values
-    _sf_reset
+    sentaku/reset
 
-    _sf_printall 1
+    sentaku/printall 1
     ble-decode/keymap/push sentaku
     while :; do
       local char ret
@@ -1488,18 +1494,18 @@ sentaku/main () { # {{{
       [[ $_ble_decode_keymap == sentaku || $_ble_decode_keymap == sentaku_search ]] &&
         ((_s_break==1)) && break
       [[ $_ble_decode_keymap == sentaku ]] &&
-        _sf_printall 1
+        sentaku/printall 1
     done
     ble-decode/keymap/pop
 
     # Clear (Show cursor, Restore display, Enable echo input)
-    _sf_clear
+    sentaku/clear
 
     [[ $term_state == external ]] && ble/term/leave
   } < /dev/tty > /dev/tty
 
   # Finalization
-  _sf_finalize
+  sentaku/finalize
 }
 
 # Execution part
