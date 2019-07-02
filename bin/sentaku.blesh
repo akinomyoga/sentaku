@@ -111,8 +111,14 @@ _sf_initialize () { # {{{
   _s_n_offset=0
   _s_g=0
   _s_n_move=-1
-  _s_visual=-1
+
+  ## @var _sentaku_visual
+  ##   _sentaku_visual=-1 ... single selection mode
+  ##   _sentaku_visual=-2 ... visual selection mode
+  ##   _sentaku_visual>=0 ... visual selection mode (currently selecting)
+  _sentaku_visual=-1
   _sentaku_visual_list=()
+
   _s_break=0
   _s_search=""
   _s_search_words=""
@@ -226,7 +232,7 @@ _sf_finalize () { # {{{
       local -a selected
       selected=()
       IFS=$_s_s
-      if ((_s_visual!=-1)); then
+      if ((_sentaku_visual!=-1)); then
         local is_first=1
         local i
         local j=0
@@ -237,11 +243,11 @@ _sf_finalize () { # {{{
       _s_inputs=("${_s_pre_inputs_0[@]}")
       IFS=$_s_IFS
       _s_n=${#_s_inputs[@]}
-      if ((_s_visual!=-1)); then
+      if ((_sentaku_visual!=-1)); then
         sentaku/list#clear
       fi
       _s_current_n=0
-      if ((_s_visual!=-1)); then
+      if ((_sentaku_visual!=-1)); then
         local i
         local j
         for ((i=0;i<_s_n;i++)); do
@@ -330,7 +336,7 @@ _sf_finalize () { # {{{
   unset _s_n_offset
   unset _s_g
   unset _s_n_move
-  unset _s_visual
+  unset _sentaku_visual
   unset _sentaku_visual_list
   unset _s_break
   unset _s_search
@@ -367,7 +373,7 @@ _sf_finalize_user () { # {{{
 } # }}}
 
 _sf_execute () {
-  if ((_s_visual!=-1));then
+  if ((_sentaku_visual!=-1));then
     local is_first=1
     local i
     for i in "${!_sentaku_visual_list[@]}"; do
@@ -911,7 +917,7 @@ _sf_reset () { # {{{
   _s_n_offset=0
   _s_g=0
   _s_n_move=-1
-  _s_visual=-1
+  _sentaku_visual=-1
   sentaku/list#clear
   tput cup "$_s_ext_row" 0 >/dev/tty
   _sf_printall
@@ -941,15 +947,15 @@ function sentaku/move-down { # The line goes Down. (Increase the line number) {{
   fi
   if ((all==1)); then
     _s_is_print=1
-  elif ((_s_visual<0)); then
+  elif ((_sentaku_visual<0)); then
     _sf_printline 0 $old_cursor_r $old_current_n
     _sf_print_current_line
   fi
-  if ((_s_visual>=0)); then
+  if ((_sentaku_visual>=0)); then
     local tmp_r=$old_cursor_r
     local tmp_n=$old_current_n
     while ((tmp_n<_s_current_n)); do
-      sentaku/list#set "$tmp_n" $((tmp_n<_s_visual?0:1))
+      sentaku/list#set "$tmp_n" $((tmp_n<_sentaku_visual?0:1))
       ((all!=1)) && _sf_printline 0 $tmp_r $tmp_n
       ((tmp_r++,tmp_n++))
     done
@@ -981,11 +987,11 @@ function sentaku/move-up { # The line goes up. (Decrease the line Number!) {{{
   fi
   if ((all==1)); then
     _s_is_print=1
-  elif ((_s_visual<0)); then
+  elif ((_sentaku_visual<0)); then
     _sf_printline 0 $old_cursor_r $old_current_n
     _sf_print_current_line
   fi
-  if ((_s_visual>=0)); then
+  if ((_sentaku_visual>=0)); then
     local tmp_r=$old_cursor_r
     local tmp_n=$old_current_n
     while ((tmp_n>_s_current_n)); do
@@ -1052,7 +1058,7 @@ function ble/widget/sentaku/goto-top {
   sentaku/goto
   #local i
   #for ((i=0;i<_s_n;i++)); do
-  #  _s_visual=-2
+  #  _sentaku_visual=-2
   #  _sentaku_visual_list[i]=1
   #done
   #_s_is_print=1
@@ -1070,7 +1076,7 @@ function sentaku/delete {
   local i
   local old_current_n=$_s_current_n
   for ((i=0;i<_s_n;i++)); do
-    if ((_s_visual!=-1&&_sentaku_visual_list[i]||_s_visual==-1&&i==old_current_n)); then
+    if ((_sentaku_visual!=-1&&_sentaku_visual_list[i]||_sentaku_visual==-1&&i==old_current_n)); then
       ((i<old_current_n&&_s_current_n--))
       continue
     fi
@@ -1081,7 +1087,7 @@ function sentaku/delete {
 
 function sentaku/remove {
   local old_current_n=$_s_current_n
-  if ((_s_visual!=-1)); then
+  if ((_sentaku_visual!=-1)); then
     local i
     for i in "${!_sentaku_visual_list[@]}"; do
       unset '_s_inputs[i]'
@@ -1156,7 +1162,7 @@ function ble/widget/sentaku/delete-item {
     fi
     _s_n_offset=$((_s_n_offset-n_move))
   fi
-  _s_visual=-1
+  _sentaku_visual=-1
   sentaku/list#clear
   _s_is_print=1
 }
@@ -1326,18 +1332,18 @@ function ble/widget/sentaku/search {
 #------------------------------------------------------------------------------
 
 function ble/widget/sentaku/start-visual {
-  if ((_s_visual>=0)); then
-    _s_visual=-2
+  if ((_sentaku_visual>=0)); then
+    _sentaku_visual=-2
   else
     _sentaku_visual_list[_s_current_n]=1
-    _s_visual=$_s_current_n
+    _sentaku_visual=$_s_current_n
     _sf_print_current_line
   fi
 }
 function ble/widget/sentaku/toggle {
   # Space to start visual
   sentaku/list#set "$_s_current_n" $((!_sentaku_visual_list[_s_current_n]))
-  _s_visual=-2
+  _sentaku_visual=-2
   _sf_print_current_line
 }
 
@@ -1352,8 +1358,8 @@ function ble/widget/sentaku/redraw {
 }
 
 function ble/widget/sentaku/cancel {
-  if ((_s_visual!=-1)); then
-    _s_visual=-1
+  if ((_sentaku_visual!=-1)); then
+    _sentaku_visual=-1
     sentaku/list#clear
     _s_is_print=1
   fi
