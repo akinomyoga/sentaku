@@ -448,7 +448,7 @@ function ble/widget/sentaku_yn/yes {
 }
 function ble/widget/sentaku_yn/no {
   ble-decode/keymap/pop
-  _sf_quit
+  ble/widget/sentaku/quit # ???
   false
   eval "$_sentaku_yn_callback"
 }
@@ -615,82 +615,6 @@ _sf_align_values () { # {{{ _sf_align_values [<n> [<is_get>]]
   if [[ "$is_get" -eq 1 ]];then
     _sf_get_values_wrapper
   fi
-} # }}}
-
-_sf_delete () { # {{{
-  echo -n > "$_s_file"
-  local i
-  local old_current_n=$_s_current_n
-  for i in $(seq 0 $((_s_n-1)));do
-    if [[ ("$_s_visual" -ne -1 && "${_s_v_selected[$i]}" -eq 1 ) ||\
-          ("$_s_visual" -eq -1 && "$i" -eq "$old_current_n") ]];then
-      if [[ "$i" -lt "$old_current_n" ]];then
-        ((_s_current_n--))
-      fi
-      continue
-    fi
-    printf "%s$_s_s_push" "${_s_inputs[$i]}" >> "$_s_file"
-  done
-  _sf_get_values_wrapper
-} # }}}
-
-_sf_remove () { # {{{
-  local inputs
-  inputs=()
-  local i
-  local old_current_n=$_s_current_n
-  for i in $(seq 0 $((_s_n-1)));do
-    if [[ ("$_s_visual" -ne -1 && "${_s_v_selected[$i]}" -eq 1) ||\
-          ("$_s_visual" -eq -1 && "$i" -eq "$old_current_n") ]];then
-      if [[ "$i" -lt "$old_current_n" ]];then
-        ((_s_current_n--))
-      fi
-      continue
-    fi
-    inputs[${#inputs[@]}]="${_s_inputs[$i]}"
-  done
-  _s_inputs=("${inputs[@]}")
-  _s_n=${#_s_inputs[@]}
-  for i in $(seq 0 $((_s_n-1)));do
-    _s_v_selected[$i]=0
-  done
-} # }}}
-
-_sf_rm_del () { # {{{
-  local old_current_n=$_s_current_n
-  if [[ $_s_delete -eq 0 || $_s_stdin -eq 1 ]];then
-    _sf_remove
-  else
-    _sf_delete
-  fi
-  if [[ "$_s_n" -eq 0 ]];then
-    _sf_echoln "There are no remained entries"
-    _s_ret=1
-  fi
-  if [[ $_s_ret -ne 0 ]];then
-    _sf_quit $_s_ret
-    return
-  fi
-  if [[ "$_s_current_n" -ge "$_s_n" ]];then
-    _s_current_n=$((_s_n-1))
-  fi
-  if [[ $_s_current_n -lt $_s_n_offset ]];then
-    _s_n_offset=$_s_current_n
-  fi
-  local n_move
-  if [[ $((_s_n)) -lt $((_s_lines-_s_ext_row+_s_n_offset)) ]];then
-    local n_move=$((_s_lines-_s_ext_row+_s_n_offset-_s_n))
-    if [[ $n_move -gt $_s_n_offset ]];then
-      n_move=$_s_n_offset
-    fi
-    _s_n_offset=$((_s_n_offset-n_move))
-  fi
-  _s_visual=-1
-  local i
-  for i in $(seq 0 $((_s_n-1)));do
-    _s_v_selected[$i]=0
-  done
-  _s_is_print=1
 } # }}}
 
 _sf_add_spaces () { # {{{ _sf_add_spaces <var> <n> [is_prepend]
@@ -947,7 +871,34 @@ _sf_setview () { # {{{
   fi
 } # }}}
 
-sentaku/move-down () { # The line goes Down. (Increase the line number) {{{
+function ble/widget/sentaku/quit {
+  [[ $# -gt 0 ]] && _s_ret=$1
+  _s_current_n=-1
+  _s_break=1
+}
+function ble/widget/sentaku/select {
+  _s_break=1
+}
+
+_sf_reset () { # {{{
+  _s_current_n=0
+  _s_n_offset=0
+  _s_g=0
+  _s_n_move=-1
+  _s_visual=-1
+  _s_v_selected=()
+  local i
+  for i in $(seq 0 $((_s_n-1)));do
+    _s_v_selected[$i]=0
+  done
+  tput cup "$_s_ext_row" 0 >/dev/tty
+  _sf_printall
+} # }}}
+
+#------------------------------------------------------------------------------
+# moves
+
+function sentaku/move-down { # The line goes Down. (Increase the line number) {{{
   [[ $_s_n_move -le 0 ]] && _s_n_move=1
   local all=0
   local old_current_n=$_s_current_n
@@ -989,10 +940,10 @@ sentaku/move-down () { # The line goes Down. (Increase the line number) {{{
   fi
   _s_g=0
   _s_n_move=-1
-} # }}}
+}
 
-sentaku/move-up () { # The line goes up. (Decrease the line Number!) {{{
-  [[ $_s_n_move -le 0 ]] && _s_n_move=1
+function sentaku/move-up { # The line goes up. (Decrease the line Number!) {{{
+  ((_s_n_move<=0)) && _s_n_move=1
   local all=0
   local old_current_n=$_s_current_n
   local old_cursor_r=$((_s_current_n-_s_n_offset+_s_ext_row))
@@ -1033,12 +984,116 @@ sentaku/move-up () { # The line goes up. (Decrease the line Number!) {{{
   fi
   _s_g=0
   _s_n_move=-1
-} # }}}
+}
 
-_sf_item_move_up () { # {{{ Move the item up
+function ble/widget/sentaku/append-arg {
+  local n=${1:-0}
+  ((_s_n_move=_s_n_move>0?_s_n_move*10+n:n))
+}
+
+function ble/widget/sentaku/forward-item { sentaku/move-down; }
+function ble/widget/sentaku/backward-item { sentaku/move-up; }
+function ble/widget/sentaku/page-up {
+  ((_s_n_move=_s_max_show))
+  sentaku/move-up
+}
+function ble/widget/sentaku/page-down {
+  ((_s_n_move=_s_max_show))
+  sentaku/move-down
+}
+function ble/widget/sentaku/half-page-down {
+  ((_s_n_move=_s_max_show/2))
+  sentaku/move-down
+}
+function ble/widget/sentaku/half-page-up {
+  ((_s_n_move=_s_max_show/2))
+  sentaku/move-up
+}
+
+function sentaku/goto {
+  ((_s_n_move=_s_n_move-_s_current_n))
+  ((_s_n_move==0)) && return
+  if ((_s_n_move<0)); then
+    ((_s_n_move=-_s_n_move))
+    sentaku/move-up
+  else
+    sentaku/move-down
+  fi
+}
+function ble/widget/sentaku/goto-line-or-top {
+  if ((_s_g==0)); then
+    _s_g=1
+    return
+  fi
+  ((_s_n_move<0)) && _s_n_move=0
+  sentaku/goto
+}
+function ble/widget/sentaku/goto-line-or-end {
+  ((_s_n_move<0)) && _s_n_move=$_s_n
+  sentaku/goto
+}
+# function for <C-a>-<C-Z>, <C-Space>
+function ble/widget/sentaku/goto-top {
+  _s_n_move=0
+  sentaku/goto
+  #local i
+  #for i in $(seq 0 $((_s_n-1)));do
+  #  _s_visual=-2
+  #  _s_v_selected[$i]=1
+  #done
+  #_s_is_print=1
+}
+function ble/widget/sentaku/goto-end {
+  _s_n_move=$_s_n
+  sentaku/goto
+}
+
+#------------------------------------------------------------------------------
+# edit items
+
+function sentaku/delete {
+  echo -n > "$_s_file"
+  local i
+  local old_current_n=$_s_current_n
+  for i in $(seq 0 $((_s_n-1)));do
+    if [[ ("$_s_visual" -ne -1 && "${_s_v_selected[$i]}" -eq 1 ) ||\
+          ("$_s_visual" -eq -1 && "$i" -eq "$old_current_n") ]];then
+      if [[ "$i" -lt "$old_current_n" ]];then
+        ((_s_current_n--))
+      fi
+      continue
+    fi
+    printf "%s$_s_s_push" "${_s_inputs[$i]}" >> "$_s_file"
+  done
+  _sf_get_values_wrapper
+}
+
+function sentaku/remove {
+  local inputs
+  inputs=()
+  local i
+  local old_current_n=$_s_current_n
+  for i in $(seq 0 $((_s_n-1)));do
+    if [[ ("$_s_visual" -ne -1 && "${_s_v_selected[$i]}" -eq 1) ||\
+          ("$_s_visual" -eq -1 && "$i" -eq "$old_current_n") ]];then
+      if [[ "$i" -lt "$old_current_n" ]];then
+        ((_s_current_n--))
+      fi
+      continue
+    fi
+    inputs[${#inputs[@]}]="${_s_inputs[$i]}"
+  done
+  _s_inputs=("${inputs[@]}")
+  _s_n=${#_s_inputs[@]}
+  for i in $(seq 0 $((_s_n-1)));do
+    _s_v_selected[$i]=0
+  done
+}
+
+function ble/widget/sentaku/raise-item {
   [[ $_s_current_n -eq 0 ]] && return
 
-  [[ $_s_n_move -le 0 ]] && _s_n_move=1
+  ((_s_n_move<=0)) && _s_n_move=1
 
   local replace=$((_s_current_n-_s_n_move))
   [[ $replace -lt 0 ]] && replace=0
@@ -1050,12 +1105,11 @@ _sf_item_move_up () { # {{{ Move the item up
   [[ $_s_stdin -eq 0 ]] && _sf_align_values 0 0
   _sf_printall
   sentaku/move-up
-} # }}}
-
-_sf_item_move_down () { # {{{ Move the item down
+}
+function ble/widget/sentaku/lower-item {
   [[ $_s_current_n -eq $((_s_n-1)) ]] && return
 
-  [[ $_s_n_move -le 0 ]] && _s_n_move=1
+  ((_s_n_move<=0)) && _s_n_move=1
 
   local replace=$((_s_current_n+_s_n_move))
   [[ $replace -gt $((_s_n-1)) ]] && replace=$((_s_n-1))
@@ -1067,32 +1121,43 @@ _sf_item_move_down () { # {{{ Move the item down
   [[ $_s_stdin -eq 0 ]] && _sf_align_values 0 0
   _sf_printall
   sentaku/move-down
-} # }}}
-
-_sf_quit () { # {{{
-  [[ $# -gt 0 ]] && _s_ret=$1
-  _s_current_n=-1
-  _s_break=1
-} # }}}
-
-_sf_select () { # {{{
-  _s_break=1
-} # }}}
-
-_sf_reset () { # {{{
-  _s_current_n=0
-  _s_n_offset=0
-  _s_g=0
-  _s_n_move=-1
+}
+function ble/widget/sentaku/delete-item {
+  local old_current_n=$_s_current_n
+  if [[ $_s_delete -eq 0 || $_s_stdin -eq 1 ]];then
+    sentaku/remove
+  else
+    sentaku/delete
+  fi
+  if [[ "$_s_n" -eq 0 ]];then
+    _sf_echoln "There are no remained entries"
+    _s_ret=1
+  fi
+  if [[ $_s_ret -ne 0 ]];then
+    ble/widget/sentaku/quit $_s_ret
+    return
+  fi
+  if [[ "$_s_current_n" -ge "$_s_n" ]];then
+    _s_current_n=$((_s_n-1))
+  fi
+  if [[ $_s_current_n -lt $_s_n_offset ]];then
+    _s_n_offset=$_s_current_n
+  fi
+  local n_move
+  if [[ $((_s_n)) -lt $((_s_lines-_s_ext_row+_s_n_offset)) ]];then
+    local n_move=$((_s_lines-_s_ext_row+_s_n_offset-_s_n))
+    if [[ $n_move -gt $_s_n_offset ]];then
+      n_move=$_s_n_offset
+    fi
+    _s_n_offset=$((_s_n_offset-n_move))
+  fi
   _s_visual=-1
-  _s_v_selected=()
   local i
   for i in $(seq 0 $((_s_n-1)));do
     _s_v_selected[$i]=0
   done
-  tput cup "$_s_ext_row" 0 >/dev/tty
-  _sf_printall
-} # }}}
+  _s_is_print=1
+}
 
 #------------------------------------------------------------------------------
 # mode: sentaku/search
@@ -1179,7 +1244,7 @@ function ble/widget/sentaku_search/backspace {
   sentaku/search/update delete
 }
 function ble/widget/sentaku_search/accept {
-  ble/widget/sentaku/enter
+  ble/widget/sentaku/select
   ble-decode/keymap/pop
 }
 function ble/widget/sentaku_search/self-insert {
@@ -1209,23 +1274,26 @@ function ble-decode/keymap:sentaku_search/define {
   ble-bind -f __default__ nop
   ble-bind -f __defchar__ sentaku_search/self-insert
 
-  ble-bind -f 'C-a' sentaku/c_a
-  ble-bind -f 'C-b' sentaku/c_b
-  ble-bind -f 'C-d' sentaku/c_d
-  ble-bind -f 'C-e' sentaku/c_e
-  ble-bind -f 'C-f' sentaku/c_f
-  ble-bind -f 'C-i' sentaku/c_i
-  ble-bind -f 'C-n' sentaku/c_n
-  ble-bind -f 'C-o' sentaku/c_o
-  ble-bind -f 'C-p' sentaku/c_p
-  ble-bind -f 'C-r' sentaku/c_r
-  ble-bind -f 'C-s' sentaku/c_s
-  ble-bind -f 'C-u' sentaku/c_u
-  ble-bind -f 'C-v' sentaku/c_v
-  ble-bind -f 'C-x' sentaku/c_x
-  ble-bind -f M-v sentaku/page-down
-  ble-bind -f up sentaku/n_up
-  ble-bind -f down sentaku/n_down
+  ble-bind -f 'C-a' sentaku/goto-top
+  ble-bind -f 'C-b' sentaku/page-up
+  ble-bind -f 'C-d' sentaku/half-page-down
+  ble-bind -f 'C-e' sentaku/goto-end
+  ble-bind -f 'C-f' sentaku/page-down
+  ble-bind -f 'C-n' sentaku/forward-item
+  ble-bind -f 'C-p' sentaku/backward-item
+  ble-bind -f 'C-i' sentaku/raise-item
+  ble-bind -f 'C-o' sentaku/lower-item
+  ble-bind -f 'C-r' sentaku/redraw
+  ble-bind -f 'C-s' sentaku/start-visual
+  ble-bind -f 'C-u' sentaku/half-page-up
+  ble-bind -f 'C-x' sentaku/quit
+
+  ble-bind -f 'M-v' sentaku/page-up
+  ble-bind -f 'C-v' sentaku/page-down
+  ble-bind -f prior sentaku/page-up
+  ble-bind -f next sentaku/page-down
+  ble-bind -f up sentaku/backward-item
+  ble-bind -f down sentaku/forward-item
 
   ble-bind -f 'C-h' sentaku_search/backspace
   ble-bind -f 'BS'  sentaku_search/backspace
@@ -1240,7 +1308,7 @@ function ble-decode/keymap:sentaku_search/define {
   ble-bind -f ESC sentaku_search/cancel
 }
 
-function sentaku/search {
+function ble/widget/sentaku/search {
   if [[ "$_s_ext_row" -eq 0 ]];then
     _sf_echo "Too few lines for search mode."
     return
@@ -1262,116 +1330,16 @@ function sentaku/search {
 
 #------------------------------------------------------------------------------
 
-_sf_visual_start () { # {{{
-  if [[ $_s_visual -ge 0 ]];then
+function ble/widget/sentaku/start-visual {
+  if [[ $_s_visual -ge 0 ]]; then
     _s_visual=-2
   else
     _s_v_selected[$_s_current_n]=1
     _s_visual=$_s_current_n
     _sf_print_current_line
   fi
-} # }}}
-
-function sentaku/goto {
-  ((_s_n_move=_s_n_move-_s_current_n))
-  ((_s_n_move==0)) && return
-  if ((_s_n_move<0)); then
-    ((_s_n_move=-_s_n_move))
-    sentaku/move-up
-  else
-    sentaku/move-down
-  fi
 }
-
-function ble/widget/sentaku/n_move_inc {
-  local n=${1:-0}
-  ((_s_n_move=_s_n_move>0?_s_n_move*10+n:n))
-}
-function ble/widget/sentaku/rm_del { _sf_rm_del; }
-function ble/widget/sentaku/g_vim {
-  if ((_s_g==0)); then
-    _s_g=1
-    return
-  fi
-  ((_s_n_move<0)) && _s_n_move=0
-  sentaku/goto
-}
-function ble/widget/sentaku/G_vim {
-  ((_s_n_move<0)) && _s_n_move=$_s_n
-  sentaku/goto
-}
-function ble/widget/sentaku/n_down { sentaku/move-down; }
-function ble/widget/sentaku/n_up { sentaku/move-up; }
-function ble/widget/sentaku/quit { _sf_quit; }
-function ble/widget/sentaku/s_vim {
-  _sf_echo "$(_sf_nth $((_s_current_n))) value:
-
-${_s_inputs[$_s_current_n]}\n"
-}
-function ble/widget/sentaku/visual_start { _sf_visual_start; }
-function ble/widget/sentaku/page-down {
-  ((_s_n_move=_s_max_show))
-  sentaku/move-up
-}
-
-# function for <C-a>-<C-Z>, <C-Space> {{{
-function ble/widget/sentaku/c_a { # {{{
-  _s_n_move=0
-  sentaku/goto
-  #local i
-  #for i in $(seq 0 $((_s_n-1)));do
-  #  _s_visual=-2
-  #  _s_v_selected[$i]=1
-  #done
-  #_s_is_print=1
-} # }}}
-ble/widget/sentaku/c_b () { # {{{
-  _s_n_move=$((_s_max_show))
-  sentaku/move-up
-} # }}}
-ble/widget/sentaku/c_d () { # {{{
-  _s_n_move=$((_s_max_show/2))
-  sentaku/move-down
-} # }}}
-ble/widget/sentaku/c_e () { # {{{
-  _s_n_move=$_s_n
-  sentaku/goto
-} # }}}
-ble/widget/sentaku/c_f () { # {{{
-  _s_n_move=$((_s_max_show))
-  sentaku/move-down
-} # }}}
-ble/widget/sentaku/c_i () { # {{{
-  _sf_item_move_up
-} # }}}
-ble/widget/sentaku/c_n () { # {{{
-  sentaku/move-down
-} # }}}
-ble/widget/sentaku/c_o () { # {{{
-  _sf_item_move_down
-} # }}}
-ble/widget/sentaku/c_p () { # {{{
-  sentaku/move-up
-} # }}}
-ble/widget/sentaku/c_r () { # {{{
-  _s_is_print=1
-} # }}}
-ble/widget/sentaku/c_s () { # {{{
-  _sf_visual_start
-} # }}}
-ble/widget/sentaku/c_u () { # {{{
-  _s_n_move=$((_s_max_show/2))
-  sentaku/move-up
-} # }}}
-ble/widget/sentaku/c_v () { # {{{
-  _s_n_move=$((_s_max_show))
-  sentaku/move-down
-} # }}}
-ble/widget/sentaku/c_x () { # {{{
-  _sf_quit
-} # }}}
-
-ble/widget/sentaku/space () { # {{{
+function ble/widget/sentaku/toggle {
   # Space to start visual
   if [[ ${_s_v_selected[$_s_current_n]} -eq 1 ]];then
     _s_v_selected[$_s_current_n]=0
@@ -1380,15 +1348,17 @@ ble/widget/sentaku/space () { # {{{
   fi
   _s_visual=-2
   _sf_print_current_line
-} # }}}
+}
 
-ble/widget/sentaku/enter () { # {{{
-  _sf_select
-} # }}}
+function ble/widget/sentaku/show {
+  _sf_echo "$(_sf_nth $((_s_current_n))) value:
 
-ble/widget/sentaku/slash () { # {{{
-  sentaku/search
-} # }}}
+${_s_inputs[$_s_current_n]}\n"
+}
+
+function ble/widget/sentaku/redraw {
+  _s_is_print=1
+}
 
 _sf_push () { # {{{
   # Set input
@@ -1438,56 +1408,60 @@ function ble-decode/keymap:sentaku/define {
   ble-bind -f __default__ nop
 
   if ((_s_keymode==0)); then
-    ble-bind -f 0 'sentaku/n_move_inc 0'
-    ble-bind -f 1 'sentaku/n_move_inc 1'
-    ble-bind -f 2 'sentaku/n_move_inc 2'
-    ble-bind -f 3 'sentaku/n_move_inc 3'
-    ble-bind -f 4 'sentaku/n_move_inc 4'
-    ble-bind -f 5 'sentaku/n_move_inc 5'
-    ble-bind -f 6 'sentaku/n_move_inc 6'
-    ble-bind -f 7 'sentaku/n_move_inc 7'
-    ble-bind -f 8 'sentaku/n_move_inc 8'
-    ble-bind -f 9 'sentaku/n_move_inc 9'
-    ble-bind -f d 'sentaku/rm_del' 
-    ble-bind -f g 'sentaku/g_vim'
-    ble-bind -f j 'sentaku/n_down'
-    ble-bind -f k 'sentaku/n_up'
+    ble-bind -f 0 'sentaku/append-arg 0'
+    ble-bind -f 1 'sentaku/append-arg 1'
+    ble-bind -f 2 'sentaku/append-arg 2'
+    ble-bind -f 3 'sentaku/append-arg 3'
+    ble-bind -f 4 'sentaku/append-arg 4'
+    ble-bind -f 5 'sentaku/append-arg 5'
+    ble-bind -f 6 'sentaku/append-arg 6'
+    ble-bind -f 7 'sentaku/append-arg 7'
+    ble-bind -f 8 'sentaku/append-arg 8'
+    ble-bind -f 9 'sentaku/append-arg 9'
+    ble-bind -f d 'sentaku/delete-item' 
+    ble-bind -f g 'sentaku/goto-line-or-top'
+    ble-bind -f G 'sentaku/goto-line-or-end'
+    ble-bind -f j 'sentaku/forward-item'
+    ble-bind -f k 'sentaku/backward-item'
     ble-bind -f q 'sentaku/quit'
-    ble-bind -f s 'sentaku/s_vim'
-    ble-bind -f v 'sentaku/visual_start'
-    ble-bind -f G 'sentaku/G_vim'
-    ble-bind -f / 'sentaku/slash'
+    ble-bind -f s 'sentaku/show'
+    ble-bind -f v 'sentaku/start-visual'
+    ble-bind -f / 'sentaku/search'
   else
     function ble/widget/sentaku/self-insert {
       local ret; ble/util/c2s "${KEYS[0]}"
-      sentaku/search "$ret"
+      ble/widget/sentaku/search "$ret"
     }
     ble-bind -f __defchar__ sentaku/self-insert
   fi
 
-  ble-bind -f 'C-a' sentaku/c_a
-  ble-bind -f 'C-b' sentaku/c_b
-  ble-bind -f 'C-d' sentaku/c_d
-  ble-bind -f 'C-e' sentaku/c_e
-  ble-bind -f 'C-f' sentaku/c_f
-  ble-bind -f 'C-i' sentaku/c_i
-  ble-bind -f 'C-n' sentaku/c_n
-  ble-bind -f 'C-o' sentaku/c_o
-  ble-bind -f 'C-p' sentaku/c_p
-  ble-bind -f 'C-r' sentaku/c_r
-  ble-bind -f 'C-s' sentaku/c_s
-  ble-bind -f 'C-u' sentaku/c_u
-  ble-bind -f 'C-v' sentaku/c_v
-  ble-bind -f 'C-x' sentaku/c_x
+  ble-bind -f 'C-a' sentaku/goto-top
+  ble-bind -f 'C-b' sentaku/page-up
+  ble-bind -f 'C-d' sentaku/half-page-down
+  ble-bind -f 'C-e' sentaku/goto-end
+  ble-bind -f 'C-f' sentaku/page-down
+  ble-bind -f 'C-n' sentaku/forward-item
+  ble-bind -f 'C-p' sentaku/backward-item
+  ble-bind -f 'C-i' sentaku/raise-item
+  ble-bind -f 'C-o' sentaku/lower-item
+  ble-bind -f 'C-r' sentaku/redraw
+  ble-bind -f 'C-s' sentaku/start-visual
+  ble-bind -f 'C-u' sentaku/half-page-up
+  ble-bind -f 'C-x' sentaku/quit
 
-  ble-bind -f SP  sentaku/space
-  ble-bind -f C-j sentaku/enter
-  ble-bind -f C-m sentaku/enter
-  ble-bind -f RET sentaku/enter
+  ble-bind -f SP  sentaku/toggle
+  ble-bind -f C-j sentaku/select
+  ble-bind -f C-m sentaku/select
+  ble-bind -f RET sentaku/select
 
-  ble-bind -f M-v sentaku/page-down
-  ble-bind -f up sentaku/n_up
-  ble-bind -f down sentaku/n_down
+  ble-bind -f 'M-v' sentaku/page-up
+  ble-bind -f 'C-v' sentaku/page-down
+  ble-bind -f prior sentaku/page-up
+  ble-bind -f next sentaku/page-down
+  ble-bind -f up sentaku/backward-item
+  ble-bind -f down sentaku/forward-item
+
+  ble-bind -f delete sentaku/delete-item
 
   ble-bind -f ESC sentaku/cancel
 }
