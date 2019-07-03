@@ -64,7 +64,7 @@ function sentaku/help {
   fi
 }
 
-function sentaku/initialize { # {{{
+function sentaku/initialize {
   # Set variables
   _sentaku_file=${SENTAKU_INPUT_FILE:-$_SENTAKU_INPUT_FILE}
   _sentaku_file_use=0
@@ -194,7 +194,7 @@ Key operation at sentaku window
 
   # User initialization
   sentaku/INITIALIZE
-} # }}}
+}
 
 function sentaku/INITIALIZE {
   :
@@ -609,7 +609,8 @@ function sentaku/get-values.impl {
   _sentaku_ret=0
 }
 
-function sentaku/align-values () { # {{{ sentaku/align-values [<n> [<is_get>]]
+## @fn sentaku/align-values [<n> [<is_get>]]
+function sentaku/align-values () {
   local n=${1:-$_sentaku_n_current}
   local is_get=${2:-1}
   if [[ ! $n =~ ^[0-9]+$ || n -ge _sentaku_count ]];then
@@ -628,9 +629,10 @@ function sentaku/align-values () { # {{{ sentaku/align-values [<n> [<is_get>]]
   if ((is_get==1)); then
     sentaku/get-values
   fi
-} # }}}
+}
 
-function sentaku/string#add-spaces { # {{{ sentaku/string#add-spaces <var> <n> [is_prepend]
+## @fn sentaku/string#add-spaces <var> <n> [is_prepend]
+function sentaku/string#add-spaces {
   local var=$1
   local n=$2
   local prepend=${3:-0}
@@ -660,7 +662,7 @@ function sentaku/string#cut-word {
   fi
   eval "$var=\$_value"
   return
-} # }}}
+}
 
 ## sentaku/show [<is_selected>] [<n_show>]
 function sentaku/show {
@@ -713,7 +715,8 @@ function sentaku/show {
   fi
 }
 
-function sentaku/printline { # useage: sentaku/printline is_selected n_line n_input {{{
+## usage: sentaku/printline is_selected n_line n_input
+function sentaku/printline {
   local is_selected=$1
   local n_line=$2
   local n_input=$3
@@ -795,7 +798,7 @@ function sentaku/printall {
   _sentaku_invalidated=0
 }
 
-function sentaku/util/print { # {{{
+function sentaku/util/print {
   printf "%b" "$*" >/dev/tty
 }
 
@@ -845,7 +848,7 @@ function sentaku/set-header {
   else
     local delete_key=""
   fi
-  if [[ $_sentaku_opt_keymode -eq 0 ]];then
+  if ((_sentaku_opt_keymode==0)); then
     if [[ "$_sentaku_cols" -ge 68 ]];then
       _sentaku_header="$_sentaku_header
   [n]j(n-down), [n]k(n-up), gg(top), G(bottom), [n]gg/G, (go to n)
@@ -864,7 +867,7 @@ function sentaku/set-header {
   Other normal keys start an incremental search"
     fi
   fi
-}  # }}}
+}
 
 function sentaku/setview {
   if ((_sentaku_rows<=_sentaku_min_show)); then
@@ -911,7 +914,8 @@ function sentaku/reset {
 #------------------------------------------------------------------------------
 # moves
 
-function sentaku/move-down { # The line goes Down. (Increase the line number) {{{
+## The line goes Down. (Increase the line number)
+function sentaku/move-down {
   ((_sentaku_arg<=0)) && _sentaku_arg=1
   local all=0
   local old_current_n=$_sentaku_n_current
@@ -951,7 +955,8 @@ function sentaku/move-down { # The line goes Down. (Increase the line number) {{
   _sentaku_arg=-1
 }
 
-function sentaku/move-up { # The line goes up. (Decrease the line Number!) {{{
+## The line goes up. (Decrease the line Number!)
+function sentaku/move-up {
   ((_sentaku_arg<=0)) && _sentaku_arg=1
   local all=0
   local old_current_n=$_sentaku_n_current
@@ -1259,31 +1264,7 @@ function ble-decode/keymap:sentaku_search/define {
   ble-bind -f __default__ nop
   ble-bind -f __defchar__ sentaku_search/self-insert
 
-  ble-bind -f 'C-a' sentaku/goto-top
-  ble-bind -f 'C-b' sentaku/page-up
-  ble-bind -f 'C-d' sentaku/half-page-down
-  ble-bind -f 'C-e' sentaku/goto-end
-  ble-bind -f 'C-f' sentaku/page-down
-  ble-bind -f 'C-n' sentaku/forward-item
-  ble-bind -f 'C-p' sentaku/backward-item
-  ble-bind -f 'C-i' sentaku/raise-item
-  ble-bind -f 'C-o' sentaku/lower-item
-  ble-bind -f 'C-r' sentaku/redraw
-  ble-bind -f 'C-s' sentaku/start-visual
-  ble-bind -f 'C-u' sentaku/half-page-up
-  ble-bind -f 'C-x' sentaku/quit
-
-  ble-bind -f 'M-v' sentaku/page-up
-  ble-bind -f 'C-v' sentaku/page-down
-  ble-bind -f prior sentaku/page-up
-  ble-bind -f next sentaku/page-down
-  ble-bind -f up sentaku/backward-item
-  ble-bind -f down sentaku/forward-item
-
-  ble-bind -f 'C-h' sentaku_search/backspace
-  ble-bind -f 'BS'  sentaku_search/backspace
-  ble-bind -f 'C-?' sentaku_search/backspace
-  ble-bind -f 'DEL' sentaku_search/backspace
+  ble-decode/keymap:sentaku/define-movement
 
   ble-bind -f C-j sentaku_search/accept
   ble-bind -f C-m sentaku_search/accept
@@ -1357,39 +1338,7 @@ function ble/widget/sentaku/cancel {
   fi
 }
 
-function ble-decode/keymap:sentaku/define {
-  local ble_bind_keymap=sentaku
-
-  ble-bind -f __default__ nop
-
-  if ((_sentaku_opt_keymode==0)); then
-    ble-bind -f 0 'sentaku/append-arg 0'
-    ble-bind -f 1 'sentaku/append-arg 1'
-    ble-bind -f 2 'sentaku/append-arg 2'
-    ble-bind -f 3 'sentaku/append-arg 3'
-    ble-bind -f 4 'sentaku/append-arg 4'
-    ble-bind -f 5 'sentaku/append-arg 5'
-    ble-bind -f 6 'sentaku/append-arg 6'
-    ble-bind -f 7 'sentaku/append-arg 7'
-    ble-bind -f 8 'sentaku/append-arg 8'
-    ble-bind -f 9 'sentaku/append-arg 9'
-    ble-bind -f d 'sentaku/delete-item' 
-    ble-bind -f g 'sentaku/goto-line-or-top'
-    ble-bind -f G 'sentaku/goto-line-or-end'
-    ble-bind -f j 'sentaku/forward-item'
-    ble-bind -f k 'sentaku/backward-item'
-    ble-bind -f q 'sentaku/quit'
-    ble-bind -f s 'sentaku/show'
-    ble-bind -f v 'sentaku/start-visual'
-    ble-bind -f / 'sentaku/search'
-  else
-    function ble/widget/sentaku/self-insert {
-      local ret; ble/util/c2s "${KEYS[0]}"
-      ble/widget/sentaku/search "$ret"
-    }
-    ble-bind -f __defchar__ sentaku/self-insert
-  fi
-
+function ble-decode/keymap:sentaku/define-movement {
   ble-bind -f 'C-a' sentaku/goto-top
   ble-bind -f 'C-b' sentaku/page-up
   ble-bind -f 'C-d' sentaku/half-page-down
@@ -1403,18 +1352,67 @@ function ble-decode/keymap:sentaku/define {
   ble-bind -f 'C-s' sentaku/start-visual
   ble-bind -f 'C-u' sentaku/half-page-up
   ble-bind -f 'C-x' sentaku/quit
-
-  ble-bind -f SP  sentaku/toggle
-  ble-bind -f C-j sentaku/select
-  ble-bind -f C-m sentaku/select
-  ble-bind -f RET sentaku/select
-
   ble-bind -f 'M-v' sentaku/page-up
   ble-bind -f 'C-v' sentaku/page-down
   ble-bind -f prior sentaku/page-up
   ble-bind -f next sentaku/page-down
   ble-bind -f up sentaku/backward-item
   ble-bind -f down sentaku/forward-item
+}
+
+function ble-decode/keymap:sentaku_vim/define {
+  local ble_bind_keymap=sentaku_vim
+
+  ble-decode/keymap:sentaku/define-movement
+
+  ble-bind -f __default__ nop
+
+  ble-bind -f 0 'sentaku/append-arg 0'
+  ble-bind -f 1 'sentaku/append-arg 1'
+  ble-bind -f 2 'sentaku/append-arg 2'
+  ble-bind -f 3 'sentaku/append-arg 3'
+  ble-bind -f 4 'sentaku/append-arg 4'
+  ble-bind -f 5 'sentaku/append-arg 5'
+  ble-bind -f 6 'sentaku/append-arg 6'
+  ble-bind -f 7 'sentaku/append-arg 7'
+  ble-bind -f 8 'sentaku/append-arg 8'
+  ble-bind -f 9 'sentaku/append-arg 9'
+  ble-bind -f d 'sentaku/delete-item' 
+  ble-bind -f g 'sentaku/goto-line-or-top'
+  ble-bind -f G 'sentaku/goto-line-or-end'
+  ble-bind -f j 'sentaku/forward-item'
+  ble-bind -f k 'sentaku/backward-item'
+  ble-bind -f q 'sentaku/quit'
+  ble-bind -f s 'sentaku/show'
+  ble-bind -f v 'sentaku/start-visual'
+  ble-bind -f / 'sentaku/search'
+
+  ble-bind -f SP  sentaku/toggle
+  ble-bind -f C-j sentaku/select
+  ble-bind -f C-m sentaku/select
+  ble-bind -f RET sentaku/select
+
+  ble-bind -f delete sentaku/delete-item
+
+  ble-bind -f ESC sentaku/cancel
+}
+
+function ble/widget/sentaku/self-insert {
+  local ret; ble/util/c2s "${KEYS[0]}"
+  ble/widget/sentaku/search "$ret"
+}
+function ble-decode/keymap:sentaku_emacs/define {
+  local ble_bind_keymap=sentaku_emacs
+
+  ble-decode/keymap:sentaku/define-movement
+
+  ble-bind -f __default__ nop
+  ble-bind -f __defchar__ sentaku/self-insert
+
+  ble-bind -f SP  sentaku/toggle
+  ble-bind -f C-j sentaku/select
+  ble-bind -f C-m sentaku/select
+  ble-bind -f RET sentaku/select
 
   ble-bind -f delete sentaku/delete-item
 
@@ -1466,17 +1464,24 @@ function sentaku/main {
     sentaku/reset
 
     sentaku/printall 1
-    ble-decode/keymap/push sentaku
+    if ((_sentaku_opt_keymode==0)); then
+      ble-decode/keymap/push sentaku_vim
+    else
+      ble-decode/keymap/push sentaku_emacs
+    fi
     while :; do
       local char ret
       IFS= builtin read -r -d '' -n 1 char; local ext=$?
       ble/util/s2c "$char"
       ble-decode-char "$ret"
 
-      [[ $_ble_decode_keymap == sentaku || $_ble_decode_keymap == sentaku_search ]] &&
+      case $_ble_decode_keymap in
+      (sentaku_vim|sentaku_emacs)
         ((_sentaku_break==1)) && break
-      [[ $_ble_decode_keymap == sentaku ]] &&
-        sentaku/printall 1
+        sentaku/printall 1 ;;
+      (sentaku_search)
+        ((_sentaku_break==1)) && break ;;
+      esac
     done
     ble-decode/keymap/pop
 
@@ -1491,6 +1496,8 @@ function sentaku/main {
 }
 
 # Execution part
-if [[ $1 != -n ]];then
+if [[ $1 != -n ]]; then
   (sentaku/main "$@")
+else
+  function sentaku () (sentaku/main "$@")
 fi
