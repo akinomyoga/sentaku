@@ -89,6 +89,7 @@ _SENTAKU_VARIABLES=(
   _sentaku_cols
   _sentaku_max_show
   _sentaku_stdin
+  _sentaku_opt_savechange
   _sentaku_opt_align
   _sentaku_opt_delete
   _sentaku_opt_noshow
@@ -148,6 +149,7 @@ function sentaku/initialize {
   _sentaku_rows=0
   _sentaku_cols=0
   _sentaku_max_show=0
+  _sentaku_opt_savechange=0
   _sentaku_opt_align=0
   _sentaku_opt_delete=0
   _sentaku_opt_noshow=0
@@ -189,7 +191,8 @@ Arguments:
   -N         No nubmers are shown.
   -U         Use underline to show selected line, instead of highlighting.
   -l         Show last words instead of starting words for longer lines.
-  -a         Align input list (set selected one to the first).
+  -m         Save changes to <file>.
+  -a         Align input list (set selected one to the first) [implies -m].
   -r <n>     Return nth value directly.
   -p         Push words to the file.
   -E         Use Emacs mode
@@ -260,6 +263,24 @@ function sentaku/list#set {
     unset '_sentaku_visual_list[index]'
   fi
 }
+function sentaku/list#rotate {
+  local a=$1 b=$2 shift=$3
+  local -a selected
+  selected=("${!_sentaku_visual_list[@]}")
+  _sentaku_visual_list=()
+  local i
+  for i in "${selected[@]}"; do
+    if ((a<=i&&i<b)); then
+      if ((i<b-shift)); then
+        ((i+=shift))
+      else
+        ((i-=b-shift))
+      fi
+    fi
+    _sentaku_visual_list[i]=1
+  done
+}
+
 
 SENTAKU_REPLY=()
 SENTAKU_INDEX=()
@@ -373,8 +394,8 @@ function sentaku/check-args {
     ("-N") _sentaku_opt_nonumber=1;;
     ("-U") _sentaku_opt_line_highlight=0;;
     ("-l") _sentaku_opt_showlast=1;;
-    ("-a") _sentaku_opt_align=1;;
-    ("-m") ;;
+    ("-a") _sentaku_opt_savechange=1 _sentaku_opt_align=1 ;;
+    ("-m") _sentaku_opt_savechange=1 ;;
     ("-r")
       if [[ "$2" =~ ^[0-9]+$ ]];then
         _sentaku_n_current=$2
@@ -720,7 +741,7 @@ function sentaku/echo-printall {
 function sentaku/set-header {
   _sentaku_header="\\e[43;30m$_sentaku_count values in total\\e[0m "
   ((_sentaku_opt_noheader==1)) && return
-  if ((_sentaku_opt_delete==1)); then
+  if ((_sentaku_opt_delete)); then
     local delete_key="d(delete), "
   else
     local delete_key=""
@@ -792,86 +813,98 @@ function ble/widget/sentaku/accept {
 #------------------------------------------------------------------------------
 # moves
 
-## The line goes Down. (Increase the line number)
-function sentaku/move-down {
-  ((_sentaku_arg<=0)) && _sentaku_arg=1
-  local all=0
-  local old_current_n=$_sentaku_n_current
-  local old_cursor_r=$((_sentaku_n_current-_sentaku_n_offset+_sentaku_ext_rows))
-  _sentaku_n_current=$((_sentaku_n_current+_sentaku_arg))
-  ((_sentaku_n_current>=_sentaku_count)) && ((_sentaku_arg=-1,_sentaku_n_current=_sentaku_count-1))
-  if ((_sentaku_n_current==old_current_n)); then
-    _sentaku_g_count=0
-    _sentaku_arg=-1
-  fi
-  if ((_sentaku_n_current+1-_sentaku_max_show>_sentaku_n_offset)); then
-    if ((_sentaku_opt_pagechange==0)); then
-      ((_sentaku_n_offset=_sentaku_n_current+1-_sentaku_max_show))
-    else
-      ((_sentaku_n_offset=_sentaku_n_current-_sentaku_n_current%_sentaku_max_show))
-    fi
-    all=1
-  fi
-  if ((all==1)); then
-    _sentaku_invalidated=1
-  elif ((_sentaku_visual<0)); then
-    sentaku/printline 0 $old_cursor_r $old_current_n
-    sentaku/print_current_line
-  fi
-  if ((_sentaku_visual>=0)); then
-    local tmp_r=$old_cursor_r
-    local tmp_n=$old_current_n
-    while ((tmp_n<_sentaku_n_current)); do
-      sentaku/list#set "$tmp_n" $((tmp_n<_sentaku_visual?0:1))
-      ((all!=1)) && sentaku/printline 0 $tmp_r $tmp_n
-      ((tmp_r++,tmp_n++))
-    done
-    _sentaku_visual_list[_sentaku_n_current]=1
-    ((all!=1)) && sentaku/print_current_line
-  fi
-  _sentaku_g_count=0
-  _sentaku_arg=-1
-}
 
-## The line goes up. (Decrease the line Number!)
-function sentaku/move-up {
-  ((_sentaku_arg<=0)) && _sentaku_arg=1
-  local all=0
-  local old_current_n=$_sentaku_n_current
-  local old_cursor_r=$((_sentaku_n_current-_sentaku_n_offset+_sentaku_ext_rows))
-  _sentaku_n_current=$((_sentaku_n_current-_sentaku_arg))
-  ((_sentaku_n_current<0)) && _sentaku_n_current=0
-  if ((_sentaku_n_current==old_current_n));then
-    _sentaku_g_count=0
-    _sentaku_arg=-1
-  fi
-  if ((_sentaku_n_current<_sentaku_n_offset)); then
-    if ((_sentaku_opt_pagechange==0)); then
-      ((_sentaku_n_offset=_sentaku_n_current))
-    else
-      ((_sentaku_n_offset=_sentaku_n_current-_sentaku_n_current%_sentaku_max_show))
-    fi
-    all=1
-  fi
-  if ((all==1)); then
-    _sentaku_invalidated=1
-  elif ((_sentaku_visual<0)); then
-    sentaku/printline 0 $old_cursor_r $old_current_n
-    sentaku/print_current_line
-  fi
-  if ((_sentaku_visual>=0)); then
-    local tmp_r=$old_cursor_r
-    local tmp_n=$old_current_n
-    while ((tmp_n>_sentaku_n_current)); do
-      sentaku/list#set "$tmp_n" $((tmp_n>s_visual?1:0))
-      ((all!=1)) && sentaku/printline 0 $tmp_r $tmp_n
-      ((tmp_r--,tmp_n--))
-    done
-    _sentaku_visual_list[_sentaku_n_current]=1
-    ((all!=1)) && sentaku/print_current_line
-  fi
+## @fn sentaku/goto.impl new_pos opts
+##   @param[in] new_pos
+function sentaku/goto.impl {
+  local new_pos=$1 opts=$2
   _sentaku_g_count=0
   _sentaku_arg=-1
+
+  local old_pos=$_sentaku_n_current
+  if ((new_pos<0)); then
+    ((new_pos=0))
+  elif ((new_pos>=_sentaku_count)); then
+    ((new_pos=_sentaku_count-1))
+  fi
+  ((new_pos==old_pos)) && return
+
+  local old_cursor_r=$((_sentaku_n_current-_sentaku_n_offset+_sentaku_ext_rows))
+  local new_ofs=$_sentaku_n_offset
+  local flag_all=
+  if ((new_pos>=new_ofs+_sentaku_max_show)); then
+    if ((_sentaku_opt_pagechange==0)); then
+      ((new_ofs=new_pos+1-_sentaku_max_show))
+    else
+      ((new_ofs=new_pos-new_pos%_sentaku_max_show))
+    fi
+    flag_all=1
+  elif ((new_pos<new_ofs)); then
+    if ((_sentaku_opt_pagechange==0)); then
+      ((new_ofs=new_pos))
+    else
+      ((new_ofs=new_pos-new_pos%_sentaku_max_show))
+    fi
+    flag_all=1
+  fi
+  _sentaku_n_current=$new_pos
+  _sentaku_n_offset=$new_ofs
+
+  [[ $flag_all ]] && _sentaku_invalidated=1
+
+  if [[ :$opts: == *:carry:* ]]; then
+    if ((new_pos>old_pos)); then
+      local a=$old_pos b=$((new_pos+1)) shift=$((new_pos-old_pos))
+    else
+      local a=$new_pos b=$((old_pos+1)) shift=1
+    fi
+    _sentaku_items=("${_sentaku_items[@]::a}"
+                    "${_sentaku_items[@]:b-shift:shift}"
+                    "${_sentaku_items[@]:a:b-a-shift}"
+                    "${_sentaku_items[@]:b}")
+
+    ((_sentaku_visual>=0)) && _sentaku_visual=-2
+    if ((_sentaku_visual!=-1)); then
+      sentaku/list#rotate "$a" "$b" "$shift"
+    fi
+
+    ((_sentaku_opt_savechange&&_sentaku_stdin==0)) &&
+      sentaku/align-values 0 0
+
+    if [[ ! $flag_all ]]; then
+      local i r=$((a-_sentaku_n_offset+_sentaku_ext_rows))
+      for ((i=a;i<b;i++,r++)); do
+        if ((i==new_pos)); then
+          sentaku/print_current_line
+        else
+          sentaku/printline 0 "$r" "$i"
+        fi
+      done
+    fi
+  elif ((_sentaku_visual>=0)); then
+    local tmp_r=$old_cursor_r
+    local tmp_n=$old_pos
+    if ((new_pos>old_pos)); then
+      while ((tmp_n<new_pos)); do
+        sentaku/list#set "$tmp_n" $((_sentaku_visual<=tmp_n))
+        [[ $flag_all ]] || sentaku/printline 0 $tmp_r $tmp_n
+        ((tmp_r++,tmp_n++))
+      done
+    elif ((new_pos<old_pos)); then
+      while ((tmp_n>new_pos)); do
+        sentaku/list#set "$tmp_n" $((_sentaku_visual>=tmp_n))
+        [[ $flag_all ]] || sentaku/printline 0 $tmp_r $tmp_n
+        ((tmp_r--,tmp_n--))
+      done
+    fi
+    _sentaku_visual_list[_sentaku_n_current]=1
+    [[ $flag_all ]] || sentaku/print_current_line
+  else
+    if [[ ! $flag_all ]]; then
+      sentaku/printline 0 $old_cursor_r $old_pos
+      sentaku/print_current_line
+    fi
+  fi
 }
 
 function ble/widget/sentaku/append-arg {
@@ -879,34 +912,33 @@ function ble/widget/sentaku/append-arg {
   ((_sentaku_arg=_sentaku_arg>0?_sentaku_arg*10+n:n))
 }
 
+## The line goes Down. (Increase the line number)
+function sentaku/move-down {
+  ((_sentaku_arg<=0)) && _sentaku_arg=1
+  sentaku/goto.impl $((_sentaku_n_current+_sentaku_arg))
+}
+
+## The line goes up. (Decrease the line Number!)
+function sentaku/move-up {
+  ((_sentaku_arg<=0)) && _sentaku_arg=1
+  sentaku/goto.impl $((_sentaku_n_current-_sentaku_arg))
+}
 function ble/widget/sentaku/forward-item { sentaku/move-down; }
 function ble/widget/sentaku/backward-item { sentaku/move-up; }
 function ble/widget/sentaku/page-up {
-  ((_sentaku_arg=_sentaku_max_show))
-  sentaku/move-up
+  sentaku/goto.impl $((_sentaku_n_current-_sentaku_max_show))
 }
 function ble/widget/sentaku/page-down {
-  ((_sentaku_arg=_sentaku_max_show))
-  sentaku/move-down
+  sentaku/goto.impl $((_sentaku_n_current+_sentaku_max_show))
 }
 function ble/widget/sentaku/half-page-down {
-  ((_sentaku_arg=_sentaku_max_show/2))
-  sentaku/move-down
+  sentaku/goto.impl $((_sentaku_n_current+_sentaku_max_show/2))
 }
 function ble/widget/sentaku/half-page-up {
-  ((_sentaku_arg=_sentaku_max_show/2))
-  sentaku/move-up
+  sentaku/goto.impl $((_sentaku_n_current-_sentaku_max_show/2))
 }
-
 function sentaku/goto {
-  ((_sentaku_arg=_sentaku_arg-_sentaku_n_current))
-  ((_sentaku_arg==0)) && return
-  if ((_sentaku_arg<0)); then
-    ((_sentaku_arg=-_sentaku_arg))
-    sentaku/move-up
-  else
-    sentaku/move-down
-  fi
+  sentaku/goto.impl "$_sentaku_arg"
 }
 function ble/widget/sentaku/goto-line-or-top {
   if ((_sentaku_g_count==0)); then
@@ -970,43 +1002,21 @@ function sentaku/remove {
 }
 
 function ble/widget/sentaku/raise-item {
-  ((_sentaku_n_current==0)) && return
-
   ((_sentaku_arg<=0)) && _sentaku_arg=1
-
-  local replace=$((_sentaku_n_current-_sentaku_arg))
-  ((replace<0)) && replace=0
-
-  local v_current=${_sentaku_items[$_sentaku_n_current]}
-  local v_replace=${_sentaku_items[$replace]}
-  _sentaku_items[$_sentaku_n_current]=$v_replace
-  _sentaku_items[$replace]=$v_current
-  ((_sentaku_stdin==0)) && sentaku/align-values 0 0
-  sentaku/printall
-  sentaku/move-up
+  sentaku/goto.impl $((_sentaku_n_current-_sentaku_arg)) carry
 }
 function ble/widget/sentaku/lower-item {
-  ((_sentaku_n_current==_sentaku_count-1)) && return
-
   ((_sentaku_arg<=0)) && _sentaku_arg=1
-
-  local replace=$((_sentaku_n_current+_sentaku_arg))
-  ((replace>_sentaku_count-1)) && replace=$((_sentaku_count-1))
-
-  local v_current=${_sentaku_items[_sentaku_n_current]}
-  local v_replace=${_sentaku_items[replace]}
-  _sentaku_items[_sentaku_n_current]=$v_replace
-  _sentaku_items[replace]=$v_current
-  ((_sentaku_stdin==0)) && sentaku/align-values 0 0
-  sentaku/printall
-  sentaku/move-down
+  sentaku/goto.impl $((_sentaku_n_current+_sentaku_arg)) carry
 }
 function ble/widget/sentaku/delete-item {
+  ((_sentaku_opt_delete)) || return 1
+
   local old_current_n=$_sentaku_n_current
-  if ((_sentaku_opt_delete==0||_sentaku_stdin==1)); then
-    sentaku/remove
-  else
+  if ((_sentaku_opt_savechange&&_sentaku_stdin==0)); then
     sentaku/delete
+  else
+    sentaku/remove
   fi
   if ((_sentaku_count==0)); then
     sentaku/echoln "There are no remained entries"
@@ -1316,6 +1326,8 @@ function ble-decode/keymap:sentaku_vim/define {
   ble-bind -f s 'sentaku/show'
   ble-bind -f v 'sentaku/start-visual'
   ble-bind -f / 'sentaku/search'
+  ble-bind -f , 'sentaku/raise-item'
+  ble-bind -f . 'sentaku/lower-item'
 
   ble-bind -f 'C-x' sentaku/quit
 
