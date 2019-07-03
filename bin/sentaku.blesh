@@ -118,8 +118,8 @@ function sentaku/initialize {
   _sentaku_visual_list=()
 
   _sentaku_break=0
-  _sentaku_search=""
-  _sentaku_search_words=""
+  _sentaku_search=
+  _sentaku_search_words=
   _sentaku_items_n=0
   eval '_sentaku_items_'{0..999}'=();'
   _sentaku_stty_state=
@@ -212,79 +212,30 @@ function sentaku/list#set {
   fi
 }
 
-
 function sentaku/finalize {
   IFS=$_sentaku_IFS
 
-  if ((_sentaku_ret==0&&_sentaku_n_current>=0));then
-    # Align values
-    if [[ $_sentaku_search ]];then
-      local -a selected
-      selected=()
-      IFS=$_sentaku_sep
-      if ((_sentaku_visual!=-1)); then
-        local is_first=1
-        local i
-        local j=0
-        for i in "${!_sentaku_visual_list[@]}"; do
-          selected[j++]=${_sentaku_items[i]}
-        done
-      fi
-      _sentaku_items=("${_sentaku_items_0[@]}")
-      IFS=$_sentaku_IFS
-      _sentaku_count=${#_sentaku_items[@]}
-      if ((_sentaku_visual!=-1)); then
-        sentaku/list#clear
-      fi
-      _sentaku_n_current=0
-      if ((_sentaku_visual!=-1)); then
-        local i
-        local j
-        for ((i=0;i<_sentaku_count;i++)); do
-          for ((j=0;j<${#selected[@]};j++)); do
-            if [[ ${selected[j]} = "${_sentaku_items[i]}" ]]; then
-              _sentaku_n_current=$i
-              _sentaku_visual_list[i]=1
-            fi
-          done
-        done
-      else
-        local val=${_sentaku_items[_sentaku_n_current]}
-        local i
-        for ((i=0;i<_sentaku_count;i++)); do
-          if [[ $val = "${_sentaku_items[$i]}" ]]; then
-            _sentaku_n_current=$i
-            break
-          fi
-        done
-      fi
-      _sentaku_search=
-    fi
+  {
+    if ((_SENTAKU_CHILD==0&&_sentaku_opt_noshow==0)); then
+      # Show cursor
+      tput cnorm 2>/dev/null || tput vs 2>/dev/null
 
-    # Execution for selected value
-    sentaku/execute
-
-    [[ "$_sentaku_opt_align" -eq 1 && "$_sentaku_stdin" -eq 0 ]] &&\
-      _sf_align_values "$_sentaku_n_current" 0
-  fi
-
-  if [[ "$_SENTAKU_CHILD" -eq 0 && "$_sentaku_opt_noshow" -eq 0 ]];then
-    # Show cursor
-    tput cnorm >/dev/tty 2>/dev/null || tput vs >/dev/tty 2>/dev/null
-
-    # Enable echo input
-    if [[ $_sentaku_stdin -eq 0 ]];then
-      if [[ $_sentaku_stty_state ]];then
-        stty $_sentaku_stty_state
-        # followings are for fixing problems of previous commands...
-        stty echo
+      # Enable echo input
+      if [[ $_sentaku_stdin -eq 0 ]];then
+        if [[ $_sentaku_stty_state ]];then
+          stty $_sentaku_stty_state
+          # followings are for fixing problems of previous commands...
+          stty echo
+        fi
       fi
     fi
-  fi
-  if [[ $_sentaku_trapped -eq 1 ]];then
-    # fixed at C-c
-    stty echo 2>/dev/null
-  fi
+    if ((_sentaku_trapped==1)); then
+      # fixed at C-c
+      stty echo 2>/dev/null
+    fi
+  } > /dev/tty < /dev/tty
+
+  sentaku/FINALIZE
 
   # Release variables
   unset _sentaku_file
@@ -337,8 +288,6 @@ function sentaku/finalize {
   unset _sentaku_stty_state
   unset _sentaku_IFS
 
-  sentaku/FINALIZE
-
   local ret=$_sentaku_ret
   unset _sentaku_ret
   return $ret
@@ -348,53 +297,19 @@ function sentaku/FINALIZE {
   :
 }
 
+SENTAKU_REPLY=()
+SENTAKU_INDEX=()
 function sentaku/execute {
   if ((_sentaku_visual!=-1));then
-    local is_first=1
+    SENTAKU_REPLY=()
+    SENTAKU_INDEX=("${!_sentaku_visual_list[@]}")
     local i
-    for i in "${!_sentaku_visual_list[@]}"; do
-      if [[ $is_first ]]; then
-        printf "%s" "${_sentaku_items[i]}"
-        is_first=
-      else
-        printf "$_sentaku_sep%s" "${_sentaku_items[i]}"
-      fi
+    for i in "${SENTAKU_INDEX[@]}"; do
+      ble/array#push SENTAKU_REPLY "${_sentaku_items[i]}"
     done
   else
-    printf "%s" "${_sentaku_items[$_sentaku_n_current]}"
-  fi
-}
-
-function sentaku/hide {
-  if [[ "$_SENTAKU_CHILD" -eq 0 && "$_sentaku_opt_noshow" -eq 0 ]];then
-    if [[ $_sentaku_stdin -eq 0 ]];then
-      # Save current stty
-      _sentaku_stty_state=$(stty -g)
-
-      # Hide any input
-      stty -echo
-
-    fi
-
-    # Hide cursor
-    tput civis >/dev/tty 2>/dev/null || tput vi >/dev/tty 2>/dev/null
-
-    # Save current display
-    tput smcup >/dev/tty 2>/dev/null || tput ti >/dev/tty 2>/dev/null
-
-    _sentaku_normal_echo=0
-  fi
-}
-
-function sentaku/clear {
-  if [[ "$_SENTAKU_CHILD" -eq 0 && "$_sentaku_opt_noshow" -eq 0 ]];then
-    # clear after selection
-    clear >/dev/tty
-
-    # Restore display
-    tput rmcup >/dev/tty 2>/dev/null || tput te >/dev/tty 2>/dev/null
-
-    _sentaku_normal_echo=1
+    SENTAKU_INDEX=("$_sentaku_n_current")
+    SENTAKU_REPLY=("${_sentaku_items[_sentaku_n_current]}")
   fi
 }
 
@@ -460,10 +375,10 @@ function sentaku/yn {
 #------------------------------------------------------------------------------
 
 ## @fn sentaku/check-args
-##   @var[out] arg_continue
+##   @var[out] flag_continue
 function sentaku/check-args {
   # Get arguments
-  arg_continue=0
+  flag_continue=0
   while (($#)); do
     case $1 in
     ("-f"|"-F") # Use file
@@ -522,7 +437,7 @@ Check \"$(basename "$0" ) -h\" for further information" >/dev/tty
     shift
   done
   _sentaku_items_cmdline="$*"
-  arg_continue=1
+  flag_continue=1
   return 0
 }
 
@@ -545,7 +460,7 @@ function sentaku/push {
   _sentaku_items=(${input}${_sentaku_sep_push}${_sentaku_items[@]})
   IFS=$_sentaku_IFS
   _sentaku_count=${#_sentaku_items[@]}
-  _sf_align_values 0 0
+  sentaku/align-values 0 0
 
   sentaku/echoln "$input is stored in $_sentaku_file"
 }
@@ -562,18 +477,13 @@ function sentaku/get-values {
 
 ## @fn sentaku/get-values.impl [<is_stdin> [<is_check>]]
 function sentaku/get-values.impl {
-  local stdin=$_sentaku_stdin
-  local check=1
-  if [[ "$1" != "" ]];then
-    stdin=$1
-  fi
-  if [[ "$2" != "" ]];then
-    check=$2
-  fi
+  local stdin=${1:-$_sentaku_stdin}
+  local check=${2:-1}
+
   # Get values
   IFS="$_sentaku_sep"
-  if [[ "$stdin" -eq 0 || "$_sentaku_file_use" -eq 1 ]];then
-    if [[ "$_sentaku_file_use" -eq 0 && -z "$_sentaku_file" ]];then
+  if ((stdin==0||_sentaku_file_use==1)); then
+    if ((_sentaku_file_use==0)) && [[ ! $_sentaku_file ]]; then
       _sentaku_items=($(echo "$_sentaku_items_cmdline"))
     else
       touch "$_sentaku_file"
@@ -583,20 +493,10 @@ function sentaku/get-values.impl {
     _sentaku_items=($(cat -))
   fi
   IFS=$_sentaku_IFS
-  if [[ -n "$ZSH_VERSION" ]];then
-    # Fix array for ZSH
-    # Zsh's array adds additional empty value to array if IFS is in the end of file.
-    if [[ ${#_sentaku_items[@]} -gt 0 ]];then
-      local last="${_sentaku_items[$((${#_sentaku_items[@]}-1))]}"
-      if [[ "${#last}" -eq 0 ]];then
-        _sentaku_items=(${_sentaku_items[0,$((${#_sentaku_items[@]}-2))]})
-      fi
-    fi
-  fi
   _sentaku_count=${#_sentaku_items[@]}
 
-  if [[ "$check" -eq 1 && "$_sentaku_count" -eq 0 ]];then
-    if [[ "$stdin" -eq 0 || "$_sentaku_file_use" -eq 1 ]];then
+  if ((check==1&&_sentaku_count==0)); then
+    if ((stdin==0||_sentaku_file_use==1)); then
       sentaku/echoln "No value in $_sentaku_file\\n"
     else
       sentaku/echoln "No value in stdin\\n"
@@ -610,7 +510,7 @@ function sentaku/get-values.impl {
 }
 
 ## @fn sentaku/align-values [<n> [<is_get>]]
-function sentaku/align-values () {
+function sentaku/align-values {
   local n=${1:-$_sentaku_n_current}
   local is_get=${2:-1}
   if [[ ! $n =~ ^[0-9]+$ || n -ge _sentaku_count ]];then
@@ -675,9 +575,7 @@ function sentaku/show {
     local ignore_case=0
     local search_words=$_sentaku_search_words
     if [[ "$_sentaku_opt_search" -eq 0 ]] || [[ "$_sentaku_opt_search" -eq 2 ]];then
-      if [[ -n "$ZSH_VERSION" ]];then
-        local words_lower=$_sentaku_search_words:l
-      elif [[ -n ${BASH_VERSINFO[0]} ]] && [[ ${BASH_VERSINFO[0]} -ge 4 ]];then
+      if [[ -n ${BASH_VERSINFO[0]} ]] && [[ ${BASH_VERSINFO[0]} -ge 4 ]];then
         local words_lower=${_sentaku_search_words,,}
       else
         local words_lower=$(echo ${_sentaku_search_words}|tr "[:upper:]" "[:lower:]")
@@ -805,7 +703,7 @@ function sentaku/util/print {
 function sentaku/echo {
   if [[ $_sentaku_opt_noshow -eq 1 ]];then
     :
-  elif [[ $_sentaku_normal_echo -eq 1 ]];then
+  elif ((_sentaku_normal_echo==1)); then
     sentaku/util/print "$*"
   else
     clear >/dev/tty
@@ -891,15 +789,6 @@ function sentaku/setview {
   fi
 }
 
-function ble/widget/sentaku/quit {
-  [[ $# -gt 0 ]] && _sentaku_ret=$1
-  _sentaku_n_current=-1
-  _sentaku_break=1
-}
-function ble/widget/sentaku/select {
-  _sentaku_break=1
-}
-
 function sentaku/reset {
   _sentaku_n_current=0
   _sentaku_n_offset=0
@@ -909,6 +798,20 @@ function sentaku/reset {
   sentaku/list#clear
   tput cup "$_sentaku_ext_rows" 0 >/dev/tty
   sentaku/printall
+}
+
+function ble/widget/sentaku/quit {
+  [[ $# -gt 0 ]] && _sentaku_ret=$1
+  _sentaku_n_current=-1
+  _sentaku_break=1
+}
+function ble/widget/sentaku/accept {
+  # Execution for selected value
+  sentaku/execute
+
+  ((_sentaku_opt_align==1&&_sentaku_stdin==0)) &&
+    sentaku/align-values "$_sentaku_n_current" 0
+  _sentaku_break=1
 }
 
 #------------------------------------------------------------------------------
@@ -1233,9 +1136,58 @@ function ble/widget/sentaku_search/backspace {
   _sentaku_count=${#_sentaku_items[@]}
   sentaku/search/update delete
 }
-function ble/widget/sentaku_search/accept {
-  ble/widget/sentaku/select
+function ble/widget/sentaku_search/quit {
   ble-decode/keymap/pop
+  ble/widget/sentaku/quit
+}
+function ble/widget/sentaku_search/accept {
+  ble-decode/keymap/pop
+
+  # Align values
+  if [[ $_sentaku_search ]]; then
+    local -a selected
+    selected=()
+    IFS=$_sentaku_sep
+    if ((_sentaku_visual!=-1)); then
+      local is_first=1
+      local i
+      local j=0
+      for i in "${!_sentaku_visual_list[@]}"; do
+        selected[j++]=${_sentaku_items[i]}
+      done
+    fi
+    _sentaku_items=("${_sentaku_items_0[@]}")
+    IFS=$_sentaku_IFS
+    _sentaku_count=${#_sentaku_items[@]}
+    if ((_sentaku_visual!=-1)); then
+      sentaku/list#clear
+    fi
+    _sentaku_n_current=0
+    if ((_sentaku_visual!=-1)); then
+      local i
+      local j
+      for ((i=0;i<_sentaku_count;i++)); do
+        for ((j=0;j<${#selected[@]};j++)); do
+          if [[ ${selected[j]} = "${_sentaku_items[i]}" ]]; then
+            _sentaku_n_current=$i
+            _sentaku_visual_list[i]=1
+          fi
+        done
+      done
+    else
+      local val=${_sentaku_items[_sentaku_n_current]}
+      local i
+      for ((i=0;i<_sentaku_count;i++)); do
+        if [[ $val = "${_sentaku_items[$i]}" ]]; then
+          _sentaku_n_current=$i
+          break
+        fi
+      done
+    fi
+    _sentaku_search=
+  fi
+
+  ble/widget/sentaku/accept
 }
 function ble/widget/sentaku_search/self-insert {
   local ret; ble/util/c2s "${KEYS[0]}"
@@ -1266,12 +1218,19 @@ function ble-decode/keymap:sentaku_search/define {
 
   ble-decode/keymap:sentaku/define-movement
 
-  ble-bind -f C-j sentaku_search/accept
-  ble-bind -f C-m sentaku_search/accept
-  ble-bind -f RET sentaku_search/accept
+  ble-bind -f 'C-x' sentaku_search/quit
 
-  ble-bind -f C-u sentaku_search/clear
-  ble-bind -f ESC sentaku_search/cancel
+  ble-bind -f 'C-h' sentaku_search/backspace
+  ble-bind -f 'BS'  sentaku_search/backspace
+  ble-bind -f 'C-?' sentaku_search/backspace
+  ble-bind -f 'DEL' sentaku_search/backspace
+
+  ble-bind -f 'C-j' sentaku_search/accept
+  ble-bind -f 'C-m' sentaku_search/accept
+  ble-bind -f 'RET' sentaku_search/accept
+
+  ble-bind -f 'C-u' sentaku_search/clear
+  ble-bind -f 'ESC' sentaku_search/cancel
 }
 
 function ble/widget/sentaku/search {
@@ -1332,7 +1291,7 @@ function ble/widget/sentaku/cancel {
   if [[ $_sentaku_search ]];then
     _sentaku_items=("${_sentaku_items_0[@]}")
     _sentaku_count=${#_sentaku_items[@]}
-    _sentaku_search=""
+    _sentaku_search=
     _sentaku_search_words=""
     sentaku/reset
   fi
@@ -1351,7 +1310,6 @@ function ble-decode/keymap:sentaku/define-movement {
   ble-bind -f 'C-r' sentaku/redraw
   ble-bind -f 'C-s' sentaku/start-visual
   ble-bind -f 'C-u' sentaku/half-page-up
-  ble-bind -f 'C-x' sentaku/quit
   ble-bind -f 'M-v' sentaku/page-up
   ble-bind -f 'C-v' sentaku/page-down
   ble-bind -f prior sentaku/page-up
@@ -1387,10 +1345,12 @@ function ble-decode/keymap:sentaku_vim/define {
   ble-bind -f v 'sentaku/start-visual'
   ble-bind -f / 'sentaku/search'
 
+  ble-bind -f 'C-x' sentaku/quit
+
   ble-bind -f SP  sentaku/toggle
-  ble-bind -f C-j sentaku/select
-  ble-bind -f C-m sentaku/select
-  ble-bind -f RET sentaku/select
+  ble-bind -f C-j sentaku/accept
+  ble-bind -f C-m sentaku/accept
+  ble-bind -f RET sentaku/accept
 
   ble-bind -f delete sentaku/delete-item
 
@@ -1409,56 +1369,104 @@ function ble-decode/keymap:sentaku_emacs/define {
   ble-bind -f __default__ nop
   ble-bind -f __defchar__ sentaku/self-insert
 
+  ble-bind -f 'C-x' sentaku/quit
+
   ble-bind -f SP  sentaku/toggle
-  ble-bind -f C-j sentaku/select
-  ble-bind -f C-m sentaku/select
-  ble-bind -f RET sentaku/select
+  ble-bind -f C-j sentaku/accept
+  ble-bind -f C-m sentaku/accept
+  ble-bind -f RET sentaku/accept
 
   ble-bind -f delete sentaku/delete-item
 
   ble-bind -f ESC sentaku/cancel
 }
 
-function sentaku/main {
-  # Set trap
-  trap "sentaku/clear;_sentaku_trapped=1;_sentaku_stdin=0;_sentaku_ret=1;sentaku/finalize;exit" HUP INT QUIT ABRT SEGV TERM
+#------------------------------------------------------------------------------
 
-  # Initializatoin
-  sentaku/initialize
+_ble_application_term_opts=
+_ble_application_term_state=
+_ble_application_loop_break=
+function ble/application/initialize {
+  local opts=$1
+  _ble_application_term_opts=$opts
+  _ble_application_term_state=$_ble_term_state
+  [[ $_ble_application_term_state == external ]] && ble/term/enter
 
-  # Get arguments
-  local arg_continue
-  sentaku/check-args "$@"
-  _sentaku_ret=$?
-  if ((_sentaku_ret)); then
-    sentaku/finalize
-    return $?
-  fi
-  if ((arg_continue==0)); then
-    sentaku/finalize
-    return $?
-  fi
+  if [[ :$opts: == *:altscreen:* ]]; then
+    tput smcup || tput ti
+  fi 2>/dev/null
 
-  # Get values
-  sentaku/get-values
-  _sentaku_ret=$?
-  if ((_sentaku_ret)); then
-    sentaku/finalize
-    return $?
-  fi
+  ble/util/buffer.flush
+}
+function ble/application/finalize {
+  local opts=$_ble_application_term_opts
+  [[ $_ble_application_term_state == external ]] && ble/term/leave
 
-  # Return nth
+  if [[ :$opts: == *:altscreen:* ]]; then
+    clear
+    tput rmcup || tput te
+  fi 2>/dev/null
+
+  ble/util/buffer.flush
+}
+function ble/application/PROLOGUE { :; }
+function ble/application/EPILOGUE { :; }
+function ble/application/loop {
+  _ble_application_loop_break=
+  while :; do
+    ble/application/PROLOGUE
+    local char ret
+    IFS= builtin read -r -d '' -n 1 char; local ext=$?
+    ble/util/s2c "$char"
+    ble-decode-char "$ret"
+    ble/application/EPILOGUE
+
+    [[ $_ble_application_loop_break ]] && break
+  done
+}
+
+#------------------------------------------------------------------------------
+
+function ble/application/EPILOGUE {
+  case $_ble_decode_keymap in
+  (sentaku_vim|sentaku_emacs)
+    if ((_sentaku_break==1)); then
+      _ble_application_loop_break=1
+    else
+      sentaku/printall 1
+    fi ;;
+  (sentaku_search)
+    ((_sentaku_break==1)) &&
+      _ble_application_loop_break=1 ;;
+  esac
+}
+function sentaku/TRAPEXIT {
+  ble/application/finalize > /dev/tty
+  _sentaku_trapped=1
+  _sentaku_stdin=0
+  _sentaku_ret=1
+  sentaku/finalize
+}
+function sentaku/main.core {
+  local flag_continue
+  sentaku/check-args "$@"; _sentaku_ret=$?
+  ((_sentaku_ret)) && return
+  ((flag_continue)) || return
+
+  sentaku/get-values; _sentaku_ret=$?
+  ((_sentaku_ret)) && return
   if ((_sentaku_n_current>=0)); then
-    sentaku/finalize
-    return $?
+    ble/widget/sentaku/accept
+    return
   fi
 
-  local term_state=$_ble_term_state
   {
-    [[ $term_state == external ]] && ble/term/enter
-
-    # Hide displays
-    sentaku/hide
+    if ((_SENTAKU_CHILD==0&&_sentaku_opt_noshow==0)); then
+      # ↑この条件は謎。入れ子で呼ばなければ必要ない?
+      _ble_term_cursor_hidden_internal=hidden
+      ble/application/initialize altscreen
+      _sentaku_normal_echo=0
+    fi
 
     # Initialize values
     sentaku/reset
@@ -1469,30 +1477,30 @@ function sentaku/main {
     else
       ble-decode/keymap/push sentaku_emacs
     fi
-    while :; do
-      local char ret
-      IFS= builtin read -r -d '' -n 1 char; local ext=$?
-      ble/util/s2c "$char"
-      ble-decode-char "$ret"
 
-      case $_ble_decode_keymap in
-      (sentaku_vim|sentaku_emacs)
-        ((_sentaku_break==1)) && break
-        sentaku/printall 1 ;;
-      (sentaku_search)
-        ((_sentaku_break==1)) && break ;;
-      esac
-    done
+    ble/application/loop
     ble-decode/keymap/pop
 
-    # Clear (Show cursor, Restore display, Enable echo input)
-    sentaku/clear
+    if ((_SENTAKU_CHILD==0&&_sentaku_opt_noshow==0)); then
+      _sentaku_normal_echo=1
+      ble/application/finalize
+    fi
+  } 5<&0 6>&1 7>&2 </dev/tty >/dev/tty
+}
+function sentaku/main {
+  trap -- 'sentaku/TRAPEXIT' HUP INT QUIT ABRT SEGV TERM
+  sentaku/initialize
+  local sep=$_sentaku_sep
+  sentaku/main.core
+  sentaku/finalize || return
 
-    [[ $term_state == external ]] && ble/term/leave
-  } < /dev/tty > /dev/tty
-
-  # Finalization
-  sentaku/finalize
+  local is_first=1
+  local item s=
+  for item in "${SENTAKU_REPLY[@]}"; do
+    printf '%s' "$s$item"
+    s=$sep
+  done
+  return 0
 }
 
 # Execution part
