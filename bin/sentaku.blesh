@@ -117,7 +117,6 @@ function sentaku/initialize {
   _sentaku_visual=-1
   _sentaku_visual_list=()
 
-  _sentaku_break=0
   _sentaku_search=
   _sentaku_search_words=
   _sentaku_items_n=0
@@ -277,7 +276,6 @@ function sentaku/finalize {
   unset _sentaku_arg
   unset _sentaku_visual
   unset _sentaku_visual_list
-  unset _sentaku_break
   unset _sentaku_search
   unset _sentaku_search_words
   unset _sentaku_items_n
@@ -311,6 +309,9 @@ function sentaku/execute {
     SENTAKU_INDEX=("$_sentaku_n_current")
     SENTAKU_REPLY=("${_sentaku_items[_sentaku_n_current]}")
   fi
+
+  ((_sentaku_opt_align==1&&_sentaku_stdin==0)) &&
+    sentaku/align-values "$_sentaku_n_current" 0
 }
 
 function sentaku/util/nth {
@@ -803,15 +804,11 @@ function sentaku/reset {
 function ble/widget/sentaku/quit {
   [[ $# -gt 0 ]] && _sentaku_ret=$1
   _sentaku_n_current=-1
-  _sentaku_break=1
+  ble-decode/keymap/pop
 }
 function ble/widget/sentaku/accept {
-  # Execution for selected value
   sentaku/execute
-
-  ((_sentaku_opt_align==1&&_sentaku_stdin==0)) &&
-    sentaku/align-values "$_sentaku_n_current" 0
-  _sentaku_break=1
+  ble-decode/keymap/pop
 }
 
 #------------------------------------------------------------------------------
@@ -1145,40 +1142,39 @@ function ble/widget/sentaku_search/accept {
 
   # Align values
   if [[ $_sentaku_search ]]; then
-    local -a selected
-    selected=()
     IFS=$_sentaku_sep
     if ((_sentaku_visual!=-1)); then
+      local -a selected
+      selected=()
       local is_first=1
       local i
       local j=0
       for i in "${!_sentaku_visual_list[@]}"; do
         selected[j++]=${_sentaku_items[i]}
       done
+    else
+      local val=${_sentaku_items[_sentaku_n_current]}
     fi
     _sentaku_items=("${_sentaku_items_0[@]}")
     IFS=$_sentaku_IFS
     _sentaku_count=${#_sentaku_items[@]}
-    if ((_sentaku_visual!=-1)); then
-      sentaku/list#clear
-    fi
     _sentaku_n_current=0
     if ((_sentaku_visual!=-1)); then
+      sentaku/list#clear
       local i
       local j
       for ((i=0;i<_sentaku_count;i++)); do
         for ((j=0;j<${#selected[@]};j++)); do
-          if [[ ${selected[j]} = "${_sentaku_items[i]}" ]]; then
+          if [[ ${selected[j]} == "${_sentaku_items[i]}" ]]; then
             _sentaku_n_current=$i
             _sentaku_visual_list[i]=1
           fi
         done
       done
     else
-      local val=${_sentaku_items[_sentaku_n_current]}
       local i
       for ((i=0;i<_sentaku_count;i++)); do
-        if [[ $val = "${_sentaku_items[$i]}" ]]; then
+        if [[ $val = "${_sentaku_items[i]}" ]]; then
           _sentaku_n_current=$i
           break
         fi
@@ -1383,14 +1379,16 @@ function ble-decode/keymap:sentaku_emacs/define {
 
 #------------------------------------------------------------------------------
 
-_ble_application_term_opts=
-_ble_application_term_state=
-_ble_application_loop_break=
-function ble/application/initialize {
+_ble_lib_app_term_opts=
+_ble_lib_app_term_state=
+_ble_lib_app_loop_break=
+_ble_lib_app_prologue=
+_ble_lib_app_epilogue=
+function ble/lib:app/setup-term {
   local opts=$1
-  _ble_application_term_opts=$opts
-  _ble_application_term_state=$_ble_term_state
-  [[ $_ble_application_term_state == external ]] && ble/term/enter
+  _ble_lib_app_term_opts=$opts
+  _ble_lib_app_term_state=$_ble_term_state
+  [[ $_ble_lib_app_term_state == external ]] && ble/term/enter
 
   if [[ :$opts: == *:altscreen:* ]]; then
     tput smcup || tput ti
@@ -1398,9 +1396,9 @@ function ble/application/initialize {
 
   ble/util/buffer.flush
 }
-function ble/application/finalize {
-  local opts=$_ble_application_term_opts
-  [[ $_ble_application_term_state == external ]] && ble/term/leave
+function ble/lib:app/reset-term {
+  local opts=$_ble_lib_app_term_opts
+  [[ $_ble_lib_app_term_state == external ]] && ble/term/leave
 
   if [[ :$opts: == *:altscreen:* ]]; then
     clear
@@ -1409,39 +1407,39 @@ function ble/application/finalize {
 
   ble/util/buffer.flush
 }
-function ble/application/PROLOGUE { :; }
-function ble/application/EPILOGUE { :; }
-function ble/application/loop {
-  _ble_application_loop_break=
+function ble/lib:app/loop {
+  local keymap=$1
+
+  local -a _ble_decode_keymap_stack=()
+  local _ble_decode_keymap=_
+  ble-decode/keymap/push "$keymap" || return 1
+
+  local _ble_lib_app_loop_break=
   while :; do
-    ble/application/PROLOGUE
+    eval -- "$_ble_lib_app_prologue"
     local char ret
     IFS= builtin read -r -d '' -n 1 char; local ext=$?
     ble/util/s2c "$char"
     ble-decode-char "$ret"
-    ble/application/EPILOGUE
+    eval -- "$_ble_lib_app_epilogue"
 
-    [[ $_ble_application_loop_break ]] && break
+    [[ $_ble_lib_app_loop_break || $_ble_decode_keymap == _ ]] && break
   done
+}
+function ble/lib:app/loop#break {
+  _ble_lib_app_loop_break=1
 }
 
 #------------------------------------------------------------------------------
 
-function ble/application/EPILOGUE {
+function sentaku/main.EPILOGUE {
   case $_ble_decode_keymap in
   (sentaku_vim|sentaku_emacs)
-    if ((_sentaku_break==1)); then
-      _ble_application_loop_break=1
-    else
-      sentaku/printall 1
-    fi ;;
-  (sentaku_search)
-    ((_sentaku_break==1)) &&
-      _ble_application_loop_break=1 ;;
+    sentaku/printall 1 ;;
   esac
 }
 function sentaku/TRAPEXIT {
-  ble/application/finalize > /dev/tty
+  ble/lib:app/reset-term > /dev/tty
   _sentaku_trapped=1
   _sentaku_stdin=0
   _sentaku_ret=1
@@ -1456,7 +1454,7 @@ function sentaku/main.core {
   sentaku/get-values; _sentaku_ret=$?
   ((_sentaku_ret)) && return
   if ((_sentaku_n_current>=0)); then
-    ble/widget/sentaku/accept
+    sentaku/execute
     return
   fi
 
@@ -1464,7 +1462,7 @@ function sentaku/main.core {
     if ((_SENTAKU_CHILD==0&&_sentaku_opt_noshow==0)); then
       # ↑この条件は謎。入れ子で呼ばなければ必要ない?
       _ble_term_cursor_hidden_internal=hidden
-      ble/application/initialize altscreen
+      ble/lib:app/setup-term altscreen
       _sentaku_normal_echo=0
     fi
 
@@ -1472,18 +1470,17 @@ function sentaku/main.core {
     sentaku/reset
 
     sentaku/printall 1
-    if ((_sentaku_opt_keymode==0)); then
-      ble-decode/keymap/push sentaku_vim
-    else
-      ble-decode/keymap/push sentaku_emacs
-    fi
+    local keymap=sentaku_vim
+    ((_sentaku_opt_keymode==1)) && keymap=sentaku_emacs
 
-    ble/application/loop
+    local _ble_lib_app_epilogue=sentaku/main.EPILOGUE
+    ble/lib:app/loop "$keymap"
+
     ble-decode/keymap/pop
 
     if ((_SENTAKU_CHILD==0&&_sentaku_opt_noshow==0)); then
       _sentaku_normal_echo=1
-      ble/application/finalize
+      ble/lib:app/reset-term
     fi
   } 5<&0 6>&1 7>&2 </dev/tty >/dev/tty
 }
@@ -1494,6 +1491,7 @@ function sentaku/main {
   sentaku/main.core
   sentaku/finalize || return
 
+  # Output to stdout
   local is_first=1
   local item s=
   for item in "${SENTAKU_REPLY[@]}"; do
