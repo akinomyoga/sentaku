@@ -583,18 +583,18 @@ function sentaku/show {
       for w in "${words[@]}";do
         if ((ignore_case==1)); then
           local ret
-          sentaku/string#replace-icase "$_sentaku_show" "$w" "\\e[31${negative}m$w\\e[0${negative}m"
+          sentaku/string#replace-icase "$_sentaku_show" "$w" "[31${negative}m$w[0${negative}m"
           _sentaku_show=$ret
         else
           local ret; ble/string#escape-for-bash-glob "$w"; local pat=$ret
-          _sentaku_show="${_sentaku_show//$pat/\\e[31${negative}m$w\\e[${negative}m}"
+          _sentaku_show="${_sentaku_show//$pat/[31${negative}m$w[${negative}m}"
         fi
       done
     else
       if ((ignore_case==1)); then
-        _sentaku_show=$(echo "$_sentaku_show"|perl -pe "s|(^$search_words)|\\e[31${negative}m\\1\\e[0${negative}m|gi")
+        _sentaku_show=$(echo "$_sentaku_show"|perl -pe "s|(^$search_words)|[31${negative}m\\1[0${negative}m|gi")
       else
-        _sentaku_show="\\e[31${negative}m$search_words\\e[${negative}m${_sentaku_show#$search_words}"
+        _sentaku_show="[31${negative}m$search_words[${negative}m${_sentaku_show#$search_words}"
       fi
     fi
   fi
