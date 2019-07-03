@@ -38,6 +38,48 @@ SENTAKU_DATE="10/May/2019"
 #CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 # }}}
 
+# Utilities # {{{
+function sentaku/string#nth {
+  local -i arg=$1
+  local digit=$arg
+  ((digit<0)) && ((digit=-digit))
+  ((digit>=20)) && ((digit%=10))
+  case $digit in
+  (1) ret=${arg}st ;;
+  (2) ret=${arg}nd ;;
+  (3) ret=${arg}rd ;;
+  (*) ret=${arg}th ;;
+  esac
+}
+
+## @fn sentaku/string#cut-word <var> <max_length> [<is_last_show>]
+function sentaku/string#cut-word {
+  local var=$1
+  local max_length=$2
+  local is_last_show=${3:-0}
+  local _value=${!var}
+  if ((is_last_show&&${#_value}>=max_length)); then
+    _value=${_value:${#_value}-max_length}
+  else
+    ble/util/sprintf _value "%-${max_length}.${max_length}s" "$_value"
+  fi
+  eval "$var=\$_value"
+  return
+}
+
+function sentaku/string#replace-icase {
+  if ((_ble_bash>=30100)); then
+    ble/string#escape-for-bash-glob "$2"; local pat=$ret
+    ret=$(shopt -s nocasematch; echo "${1//$2/"$3"}")
+  else
+    # Similar replace can be done by GNU sed, BSD sed doesn't support ignore case option
+    ble/string#escape-for-awk-regex "$2"; local pat=$ret
+    ble/string#escape-for-awk-regex "$3"; local rep=$ret
+    ret=$(<<< $1 perl -pe "s|($pat)|$rep|gi")
+  fi
+}
+# }}}
+
 # Default variables # {{{
 _SENTAKU_INPUT_FILE=${_SENTAKU_INPUT_FILE:-}
 _SENTAKU_SEPARATOR=${_SENTAKU_SEPARATOR:-$IFS}
@@ -185,10 +227,10 @@ function sentaku/initialize {
 
 Arguments:
   -f <file>  Set input file
-  -s <sep>   Set separtor (default: ${SENTAKU_SEPARATOR:-$_SENTAKU_SEPARATOR})
+  -s <sep>   Set separator (default: ${SENTAKU_SEPARATOR:-$_SENTAKU_SEPARATOR})
              If <sep> is \"line\", \$'\\n' is set as a separator.
   -H         Force to show a header at sentaku window.
-  -N         No nubmers are shown.
+  -N         No numbers are shown.
   -U         Use underline to show selected line, instead of highlighting.
   -l         Show last words instead of starting words for longer lines.
   -m         Save changes to <file>.
@@ -196,7 +238,7 @@ Arguments:
   -r <n>     Return nth value directly.
   -p         Push words to the file.
   -E         Use Emacs mode
-  -V         Use Vmacs mode
+  -V         Use Vim mode
   -c         Load functions as a child process in other sentaku process.
   -n         Don't run functions, to just source this file
   -v         Show version
@@ -208,7 +250,7 @@ Key operation at sentaku window
     C-u/C-d  Half page down/Half page down.
     C-b/C-f  Page up/Page down.
     M-v/C-v  Page up/Page down.
-    C-a/C-e  Go to the beggining/end.
+    C-a/C-e  Go to the beginning/end.
     C-i/C-o  Move the item up/down.
     C-x      Quit.
     C-s      Start/Stop Visual mode (multi-selection).
@@ -219,7 +261,7 @@ Key operation at sentaku window
              with selected words.
              Second Esc clear search mode.
              Visual mode is cleared by first Esc.
-    Ener     Select and Quit.
+    Enter    Select and Quit.
 
   For Vim mode:
     n(any number) Set number. Multi-digit can be used (13, 320, etc...).
@@ -281,7 +323,6 @@ function sentaku/list#rotate {
   done
 }
 
-
 SENTAKU_REPLY=()
 SENTAKU_INDEX=()
 function sentaku/execute {
@@ -301,19 +342,6 @@ function sentaku/execute {
     sentaku/align-values "$_sentaku_n_current" 0
 
   eval -- "$SENTAKU_CALLBACK"
-}
-
-function sentaku/util/nth {
-  local -i arg=$1
-  local digit=$arg
-  ((digit<0)) && ((digit=-digit))
-  ((digit>=20)) && ((digit%=10))
-  case $digit in
-  (1) ret=${arg}st ;;
-  (2) ret=${arg}nd ;;
-  (3) ret=${arg}rd ;;
-  (*) ret=${arg}th ;;
-  esac
 }
 
 #------------------------------------------------------------------------------
@@ -525,51 +553,6 @@ function sentaku/align-values {
   fi
 }
 
-## @fn sentaku/string#add-spaces <var> <n> [is_prepend]
-function sentaku/string#add-spaces {
-  local var=$1
-  local n=$2
-  local prepend=${3:-0}
-  while ((n>0));do
-    if ((prepend==1));then
-      eval "$var=\" \$$var\""
-    else
-      eval "$var=\"\$$var \""
-    fi
-    ((n--))
-  done
-}
-
-## @fn sentaku/string#cut-word <var> <max_length> [<is_last_show>]
-function sentaku/string#cut-word {
-  local var=$1
-  local max_length=$2
-  local is_last_show=${3:-0}
-  local _value=${!var}
-  if ((${#_value}<=max_length)); then
-    sentaku/string#add-spaces _value $((max_length-${#_value}))
-  elif ((is_last_show==0)); then
-    _value=${_value::max_length}
-  else
-    _value=${_value:${#_value}-max_length}
-    return
-  fi
-  eval "$var=\$_value"
-  return
-}
-
-function sentaku/string#replace-icase {
-  if ((_ble_bash>=30100)); then
-    ble/string#escape-for-bash-glob "$2"; local pat=$ret
-    ret=$(shopt -s nocasematch; echo "${1//$2/"$3"}")
-  else
-    # Similar replace can be done by GNU sed, BSD sed doesn't support ignore case option
-    ble/string#escape-for-awk-regex "$2"; local pat=$ret
-    ble/string#escape-for-awk-regex "$3"; local rep=$ret
-    ret=$(<<< $1 perl -pe "s|($pat)|$rep|gi")
-  fi
-}
-
 ## sentaku/show [<is_selected>] [<n_show>]
 function sentaku/show {
   local is_selected=${1:-0}
@@ -646,9 +629,10 @@ function sentaku/printline {
   if ((_sentaku_opt_nonumber==0)); then
     local nmax=$((_sentaku_count-1))
     local num_width=${#nmax}
-    n_show=$((_sentaku_cols-num_width-2))
-    sentaku/string#add-spaces num $((num_width-${#n_input})) 1
-    num="$num$n_input: "
+    if ((num_width+2<n_show)); then
+      ((n_show-=num_width+2))
+      ble/util/sprintf num "%${num_width}s: " "$n_input"
+    fi
   fi
   sentaku/show "$is_selected" "$n_show"
   if ((_sentaku_opt_color_num==1)); then
@@ -815,7 +799,15 @@ function ble/widget/sentaku/accept {
 
 
 ## @fn sentaku/goto.impl new_pos opts
+##
 ##   @param[in] new_pos
+##     new cursor position
+##
+##   @param[in] opts
+##     comma separated list of the following values:
+##
+##     "carry" carry the current item with cursor
+##
 function sentaku/goto.impl {
   local new_pos=$1 opts=$2
   _sentaku_g_count=0
@@ -913,18 +905,15 @@ function ble/widget/sentaku/append-arg {
 }
 
 ## The line goes Down. (Increase the line number)
-function sentaku/move-down {
+function ble/widget/sentaku/forward-item {
   ((_sentaku_arg<=0)) && _sentaku_arg=1
   sentaku/goto.impl $((_sentaku_n_current+_sentaku_arg))
 }
-
 ## The line goes up. (Decrease the line Number!)
-function sentaku/move-up {
+function ble/widget/sentaku/backward-item {
   ((_sentaku_arg<=0)) && _sentaku_arg=1
   sentaku/goto.impl $((_sentaku_n_current-_sentaku_arg))
 }
-function ble/widget/sentaku/forward-item { sentaku/move-down; }
-function ble/widget/sentaku/backward-item { sentaku/move-up; }
 function ble/widget/sentaku/page-up {
   sentaku/goto.impl $((_sentaku_n_current-_sentaku_max_show))
 }
@@ -1237,7 +1226,7 @@ function ble/widget/sentaku/search {
 
 #------------------------------------------------------------------------------
 
-function ble/widget/sentaku/start-visual {
+function ble/widget/sentaku/switch-visual {
   if ((_sentaku_visual>=0)); then
     _sentaku_visual=-2
   else
@@ -1254,7 +1243,7 @@ function ble/widget/sentaku/toggle {
 }
 
 function ble/widget/sentaku/show {
-  local ret; sentaku/util/nth "$_sentaku_n_current"; local nth=$ret
+  local ret; sentaku/string#nth "$_sentaku_n_current"; local nth=$ret
   sentaku/echo "$nth value:
 
 ${_sentaku_items[$_sentaku_n_current]}\n"
@@ -1290,7 +1279,7 @@ function ble-decode/keymap:sentaku/define-movement {
   ble-bind -f 'C-i' sentaku/raise-item
   ble-bind -f 'C-o' sentaku/lower-item
   ble-bind -f 'C-r' sentaku/redraw
-  ble-bind -f 'C-s' sentaku/start-visual
+  ble-bind -f 'C-s' sentaku/switch-visual
   ble-bind -f 'C-u' sentaku/half-page-up
   ble-bind -f 'M-v' sentaku/page-up
   ble-bind -f 'C-v' sentaku/page-down
@@ -1324,7 +1313,7 @@ function ble-decode/keymap:sentaku_vim/define {
   ble-bind -f k 'sentaku/backward-item'
   ble-bind -f q 'sentaku/quit'
   ble-bind -f s 'sentaku/show'
-  ble-bind -f v 'sentaku/start-visual'
+  ble-bind -f v 'sentaku/switch-visual'
   ble-bind -f / 'sentaku/search'
   ble-bind -f , 'sentaku/raise-item'
   ble-bind -f . 'sentaku/lower-item'
