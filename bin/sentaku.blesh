@@ -133,15 +133,17 @@ function sentaku/initialize {
   _sentaku_max=${SENTAKU_MAX:-$_SENTAKU_MAX}
   _sentaku_min_show=${SENTAKU_MIN_SHOW:-$_SENTAKU_MIN_SHOW}
   _sentaku_header=
-  _sentaku_opt_noheader=${SENTAKU_NOHEADER:-$_SENTAKU_NOHEADER}
+
+  _sentaku_opt_search=${SENTAKU_SEARCH_OPT:-$_SENTAKU_SEARCH_OPT}
+  _sentaku_opt_noheader=${SENTAKU_NONUMBER:-$_SENTAKU_NONUMBER}
   _sentaku_opt_nonumber=${SENTAKU_NONUMBER:-$_SENTAKU_NONUMBER}
   _sentaku_opt_showlast=${SENTAKU_SHOWLAST:-$_SENTAKU_SHOWLAST}
-  _sentaku_opt_search=${SENTAKU_SEARCH_OPT:-$_SENTAKU_SEARCH_OPT}
   _sentaku_opt_pagechange=${SENTAKU_PAGE_CHANGE:-$_SENTAKU_PAGE_CHANGE}
   _sentaku_opt_keymode=${SENTAKU_KEYMODE:-$_SENTAKU_KEYMODE}
   _sentaku_opt_color_num=${SENTAKU_COLOR_NUM_ONLY:-$_SENTAKU_COLOR_NUM_ONLY}
   _sentaku_opt_line_highlight=${SENTAKU_LINE_HIGHLIGHT:-$_SENTAKU_LINE_HIGHLIGHT}
   _sentaku_opt_debug=${SENTAKU_DEBUG:-$_SENTAKU_DEBUG}
+
   _sentaku_show=
   _sentaku_rows=0
   _sentaku_cols=0
@@ -367,7 +369,7 @@ function sentaku/check-args {
         _sentaku_sep_push=$_sentaku_sep
       fi
       shift ;;
-    ("-H") _sentaku_opt_noheader=0;;
+    ("-H") _sentaku_opt_noheader=0 ;;
     ("-N") _sentaku_opt_nonumber=1;;
     ("-U") _sentaku_opt_line_highlight=0;;
     ("-l") _sentaku_opt_showlast=1;;
@@ -604,8 +606,8 @@ function sentaku/printline {
   if [[ ${_sentaku_visual_list[n_input]} ]];then
     color="[36m"
   fi
-  if [[ "$is_selected" -eq 1 ]];then
-    if [[ "$_sentaku_opt_line_highlight" -eq 1 ]];then
+  if ((is_selected==1)); then
+    if ((_sentaku_opt_line_highlight==1));then
       color="${color}[7m"
     else
       color="${color}[4m"
@@ -644,9 +646,7 @@ function sentaku/print_current_line {
 ## usage: sentaku/printall [not force]
 function sentaku/printall {
   # if any argument is given, check if echoed or not.
-  if [[ $# -ge 1 && $_sentaku_invalidated -eq 0 ]];then
-    return
-  fi
+  (($#&&_sentaku_invalidated==0)) && return
 
   local lines=$_sentaku_rows
   local cols=$_sentaku_cols
@@ -682,9 +682,8 @@ function sentaku/util/print {
 }
 
 function sentaku/echo {
-  if [[ $_sentaku_opt_noshow -eq 1 ]];then
-    :
-  elif ((_sentaku_normal_echo==1)); then
+  ((_sentaku_opt_noshow==1)) && return
+  if ((_sentaku_normal_echo==1)); then
     sentaku/util/print "$*"
   else
     clear >/dev/tty
@@ -720,27 +719,25 @@ function sentaku/echo-printall {
 
 function sentaku/set-header {
   _sentaku_header="\\e[43;30m$_sentaku_count values in total\\e[0m "
-  if [[ "$_sentaku_opt_noheader" = 1 ]];then
-    return
-  fi
-  if [[ $_sentaku_opt_delete -eq 1 ]];then
+  ((_sentaku_opt_noheader==1)) && return
+  if ((_sentaku_opt_delete==1)); then
     local delete_key="d(delete), "
   else
     local delete_key=""
   fi
   if ((_sentaku_opt_keymode==0)); then
-    if [[ "$_sentaku_cols" -ge 68 ]];then
+    if ((_sentaku_cols>=68));then
       _sentaku_header="$_sentaku_header
   [n]j(n-down), [n]k(n-up), gg(top), G(bottom), [n]gg/G, (go to n)
   ^D(Half page down), ^U(Half page up), ^F(Page down), ^B(Page Up)
   ${delete_key}/(search), Enter/Space(select), q(quit)"
-    elif [[ "$_sentaku_cols" -ge 41 ]];then
+    elif ((_sentaku_cols>=41));then
       _sentaku_header="$_sentaku_header
   vimike updown, e.g)j:down, k:up, gg/G
   ${delete_key}Enter/Space(select), q(quit)"
     fi
   else
-    if [[ "$_sentaku_cols" -ge 51 ]];then
+    if ((_sentaku_cols>=51)); then
       _sentaku_header="$_sentaku_header
   C-n(down), C-j(up), C-v(Page down), M-v(Page up)
   Enter(select), C-x(quit)
@@ -766,7 +763,7 @@ function sentaku/setview {
   fi
 
   _sentaku_max_show=$_sentaku_count
-  if [[ "$_sentaku_count" -gt $((_sentaku_rows-_sentaku_ext_rows)) ]];then
+  if ((_sentaku_count>_sentaku_rows-_sentaku_ext_rows)); then
     _sentaku_max_show=$((_sentaku_rows-_sentaku_ext_rows))
   fi
 }
@@ -783,7 +780,7 @@ function sentaku/reset {
 }
 
 function ble/widget/sentaku/quit {
-  [[ $# -gt 0 ]] && _sentaku_ret=$1
+  (($#)) && _sentaku_ret=$1
   _sentaku_n_current=-1
   ble-decode/keymap/pop
 }
@@ -984,7 +981,7 @@ function ble/widget/sentaku/raise-item {
   local v_replace=${_sentaku_items[$replace]}
   _sentaku_items[$_sentaku_n_current]=$v_replace
   _sentaku_items[$replace]=$v_current
-  [[ $_sentaku_stdin -eq 0 ]] && sentaku/align-values 0 0
+  ((_sentaku_stdin==0)) && sentaku/align-values 0 0
   sentaku/printall
   sentaku/move-up
 }
